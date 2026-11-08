@@ -142,6 +142,7 @@ class GetPage {
           final othmanicParts = aya.othmanicAyah.split('\n');
           final qcfParts = aya.qcfData.split('\n');
 
+          int linePart = 0; // index among the non-empty pieces only
           for (int i = 0; i < parts.length; i++) {
             final textPart = parts[i].trim();
             if (textPart.isEmpty) continue;
@@ -164,6 +165,7 @@ class GetPage {
               qcfData: qcfPart,
               ayaText: textPart,
               centered: aya.centered && i == parts.length - 2,
+              linePart: linePart++,
             );
 
             currentLineAyahs.add(subAyah);

@@ -58,6 +58,11 @@ class Ayah {
   /// Indicates if the user has marked this Ayah as a favorite/bookmark.
   bool isFavorite;
 
+  /// Which visual line piece of the verse this is (0 = first). Counts only the
+  /// non-empty pieces produced when a verse wraps across page lines, so it
+  /// indexes the same piece in the DigitalKhatt text (see [DkQuran]).
+  final int linePart;
+
   /// Creates a new [Ayah] instance.
   Ayah({
     required this.id,
@@ -78,6 +83,7 @@ class Ayah {
     required this.ayahText,
     required this.sajda,
     required this.centered,
+    this.linePart = 0,
   });
 
   /// Converts the [Ayah] instance into a JSON map.
@@ -152,6 +158,7 @@ class Ayah {
     required String qcfData,
     required String ayaText,
     bool centered = false,
+    int linePart = 0,
   }) => Ayah(
     id: ayah.id,
     jozz: ayah.jozz,
@@ -171,6 +178,7 @@ class Ayah {
     ayahText: ayaText,
     sajda: false,
     centered: centered,
+    linePart: linePart,
   );
 }
 

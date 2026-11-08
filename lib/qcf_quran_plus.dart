@@ -18,6 +18,7 @@ export 'src/widgets/quran_page_view.dart';
 export 'src/widgets/quran_surah_list_view.dart';
 export 'src/utils/quran_text_styles.dart';
 export 'src/utils/font_loader_service.dart';
+export 'src/utils/dk_quran.dart';
 // ---------------------------------------------------------------------------
 // 2. Models Exports
 // ---------------------------------------------------------------------------

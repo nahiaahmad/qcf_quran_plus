@@ -32,6 +32,7 @@ flutter:
     - assets/fonts/
     - assets/surah_banner.png
     - assets/fonts/qcf_tajweed/
+    - assets/fonts/digitalkhatt/OFL.txt
   #   - images/a_dot_ham.jpeg
   #
   # For details regarding assets in packages, see
@@ -56,6 +57,10 @@ flutter:
     - family: "QCF4_BSML"
       fonts:
         - asset: assets/fonts/QCF4_BSML/QCF4_BSML.ttf
+    # DigitalKhatt New Madina (SIL OFL 1.1, see assets/fonts/digitalkhatt/OFL.txt)
+    - family: "DigitalKhatt"
+      fonts:
+        - asset: assets/fonts/digitalkhatt/DigitalKhattV2.otf
 
 
   #

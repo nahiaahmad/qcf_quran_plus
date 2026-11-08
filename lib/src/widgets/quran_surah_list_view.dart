@@ -63,6 +63,13 @@ class QuranSurahListView extends StatelessWidget {
   /// Adapts the text colors to be visible on dark backgrounds.
   final bool isDarkMode;
 
+  /// Draw verses in DigitalKhatt instead of the QCF page fonts.
+  final bool useDigitalKhatt;
+
+  /// DigitalKhatt only: ink of uncoloured text, and of the end-of-verse sign.
+  final Color? inkColor;
+  final Color? markerColor;
+
   const QuranSurahListView({
     super.key,
     required this.surahNumber,
@@ -78,6 +85,9 @@ class QuranSurahListView extends StatelessWidget {
     this.isTajweed = true,
     this.isDarkMode = false,
     this.fontSize,
+    this.useDigitalKhatt = false,
+    this.inkColor,
+    this.markerColor,
   });
 
   @override
@@ -142,7 +152,12 @@ class QuranSurahListView extends StatelessWidget {
                 // Display Basmallah for all Surahs except At-Tawbah (Surah 9)
                 if (surahNumber != 9)
                   basmallahBuilder?.call(context, surahNumber) ??
-                      BasmallahWidget(surahNumber),
+                      BasmallahWidget(
+                        surahNumber,
+                        useDigitalKhatt: useDigitalKhatt,
+                        isTajweed: isTajweed,
+                        inkColor: inkColor,
+                      ),
                 const SizedBox(height: 16),
               ],
             );
@@ -240,6 +255,27 @@ class QuranSurahListView extends StatelessWidget {
               ],
             ),
           );
+
+          if (useDigitalKhatt) {
+            final ink =
+                inkColor ??
+                (isDarkMode
+                    ? const Color(0xFFF2EEE6)
+                    : const Color(0xFF191718));
+            preBuiltAyahWidget = Text.rich(
+              TextSpan(
+                children: DkQuran.spans(
+                  index: DkQuran.indexOf(surahNumber, verseNumber),
+                  tajweed: isTajweed,
+                  ink: ink,
+                  markerColor: markerColor ?? ink.withValues(alpha: 0.5),
+                ),
+              ),
+              style: DkQuran.style(fontSize: fontSize ?? 24, height: 1.9),
+              textAlign: TextAlign.right,
+              textDirection: TextDirection.rtl,
+            );
+          }
 
           // Check if this specific verse is marked for highlighting
           final isHighlighted = highlights.any(

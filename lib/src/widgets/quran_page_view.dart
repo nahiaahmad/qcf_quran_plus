@@ -41,6 +41,13 @@ class QuranPageView extends StatelessWidget {
   /// glyph's internal shading.
   final ColorFilter? ayahNumberFilter;
 
+  /// Draw the Mushaf in DigitalKhatt instead of the QCF page fonts.
+  final bool useDigitalKhatt;
+
+  /// DigitalKhatt only: ink of uncoloured text, and of the end-of-verse sign.
+  final Color? inkColor;
+  final Color? markerColor;
+
   // Pre-loaded list of Quran pages
   final List<QuranPage> pages;
 
@@ -61,6 +68,9 @@ class QuranPageView extends StatelessWidget {
     this.isTajweed = true,
     required this.isDarkMode,
     this.ayahNumberFilter,
+    this.useDigitalKhatt = false,
+    this.inkColor,
+    this.markerColor,
   }) : pages = _loadQuranData(quranPagesCount);
 
   /// Static helper method to load the Quran pages only once upon widget initialization.
@@ -113,6 +123,9 @@ class QuranPageView extends StatelessWidget {
                     ayahStyle: ayahStyle,
                     isDark: isDarkMode,
                     ayahNumberFilter: ayahNumberFilter,
+                    useDigitalKhatt: useDigitalKhatt,
+                    inkColor: inkColor,
+                    markerColor: markerColor,
                   ),
                 ),
 
@@ -147,6 +160,12 @@ class QuranSinglePageWidget extends StatelessWidget {
   /// See [QuranPageView.ayahNumberFilter].
   final ColorFilter? ayahNumberFilter;
 
+  /// See [QuranPageView.useDigitalKhatt], [QuranPageView.inkColor] and
+  /// [QuranPageView.markerColor].
+  final bool useDigitalKhatt;
+  final Color? inkColor;
+  final Color? markerColor;
+
   const QuranSinglePageWidget({
     super.key,
     required this.page,
@@ -160,6 +179,9 @@ class QuranSinglePageWidget extends StatelessWidget {
     required this.isDark,
     this.isTajweed = true,
     this.ayahNumberFilter,
+    this.useDigitalKhatt = false,
+    this.inkColor,
+    this.markerColor,
   });
 
   @override
@@ -200,7 +222,12 @@ class QuranSinglePageWidget extends StatelessWidget {
               // Display Basmallah on page 2 (Al-Baqarah)
               if (page.pageNumber == 2 && page.ayahs.isNotEmpty)
                 basmallahBuilder?.call(context, page.ayahs[0].surahNumber) ??
-                    BasmallahWidget(page.ayahs[0].surahNumber),
+                    BasmallahWidget(
+                      page.ayahs[0].surahNumber,
+                      useDigitalKhatt: useDigitalKhatt,
+                      isTajweed: isTajweed,
+                      inkColor: inkColor,
+                    ),
 
               // Render the actual lines of the Quran text
               ...page.lines.map(
@@ -279,7 +306,12 @@ class QuranSinglePageWidget extends StatelessWidget {
                           context,
                           line.ayahs[0].surahNumber,
                         ) ??
-                        BasmallahWidget(line.ayahs[0].surahNumber),
+                        BasmallahWidget(
+                          line.ayahs[0].surahNumber,
+                          useDigitalKhatt: useDigitalKhatt,
+                          isTajweed: isTajweed,
+                          inkColor: inkColor,
+                        ),
                 ],
 
                 // The actual line of Quranic text
@@ -323,6 +355,9 @@ class QuranSinglePageWidget extends StatelessWidget {
         isTajweed: isTajweed,
         isDark: isDark,
         ayahNumberFilter: ayahNumberFilter,
+        useDigitalKhatt: useDigitalKhatt,
+        inkColor: inkColor,
+        markerColor: markerColor,
       ),
     );
   }

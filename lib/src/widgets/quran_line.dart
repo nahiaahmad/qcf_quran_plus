@@ -20,6 +20,9 @@ class QuranLine extends StatefulWidget {
     this.isTajweed = true,
     this.isDark = false,
     this.ayahNumberFilter,
+    this.useDigitalKhatt = false,
+    this.inkColor,
+    this.markerColor,
   });
 
   final Line line;
@@ -44,6 +47,18 @@ class QuranLine extends StatefulWidget {
   ///
   /// Defaults to `null` (preserves the original light/dark behavior).
   final ColorFilter? ayahNumberFilter;
+
+  /// Draw the line in DigitalKhatt (see [DkQuran]) instead of the QCF page
+  /// glyph fonts. Letters keep their true proportions; a justified line is
+  /// filled by widening the space between words.
+  final bool useDigitalKhatt;
+
+  /// DigitalKhatt only: colour of uncoloured text. Defaults to a soft
+  /// near-black (white in dark mode).
+  final Color? inkColor;
+
+  /// DigitalKhatt only: colour of the end-of-verse sign and number.
+  final Color? markerColor;
 
   @override
   State<QuranLine> createState() => _QuranLineState();
@@ -97,6 +112,7 @@ class _QuranLineState extends State<QuranLine> {
     if (_displayData.isEmpty) {
       return const SizedBox.shrink();
     }
+    if (widget.useDigitalKhatt) return _buildDigitalKhatt(context);
 
     final defaultStyle = QuranTextStyles.qcfStyle(
       fontSize: 23.55,
@@ -237,6 +253,134 @@ class _QuranLineState extends State<QuranLine> {
     );
 
     return FittedBox(fit: widget.boxFit, child: textWidget);
+  }
+}
+
+extension _DigitalKhattLine on _QuranLineState {
+  /// Line height as a multiple of the font size. DigitalKhatt's own line box is
+  /// 2.4 em (room for stacked marks); a Mushaf line is tighter, and marks may
+  /// reach into the gap between lines exactly as on the printed page.
+  static const double _lineHeightEm = 1.75;
+
+  Widget _buildDigitalKhatt(BuildContext context) {
+    final ink =
+        widget.inkColor ??
+        (widget.isDark ? const Color(0xFFF2EEE6) : const Color(0xFF191718));
+    final marker = widget.markerColor ?? ink.withValues(alpha: 0.5);
+    final justify = widget.boxFit == BoxFit.fill;
+    final highlightMap = {
+      for (var h in widget.bookmarks) '${h.surah}_${h.verseNumber}': h,
+    };
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxW = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.of(context).size.width;
+        final boxH = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 44.0;
+        final fontSize = widget.ayahStyle?.fontSize ?? boxH / _lineHeightEm;
+        final base = DkQuran.style(
+          fontSize: fontSize,
+          height: _lineHeightEm,
+        ).copyWith(leadingDistribution: TextLeadingDistribution.even);
+
+        // Pieces in reading order (the line's ayahs are stored in order).
+        final pieces = [
+          for (final a in widget.line.ayahs)
+            (
+              ayah: a,
+              spans: DkQuran.spans(
+                index: a.id - 1,
+                part: a.linePart,
+                tajweed: widget.isTajweed,
+                ink: ink,
+                markerColor: marker,
+              ),
+            ),
+        ];
+
+        // Natural width of the whole line with single spaces between pieces.
+        final measure = TextPainter(
+          textDirection: TextDirection.rtl,
+          text: TextSpan(
+            style: base,
+            children: [
+              for (int i = 0; i < pieces.length; i++) ...[
+                ...pieces[i].spans,
+                if (i < pieces.length - 1) const TextSpan(text: ' '),
+              ],
+            ],
+          ),
+        )..layout();
+        final natural = measure.maxIntrinsicWidth;
+        final plain = measure.text!.toPlainText();
+        final spaces = ' '.allMatches(plain).length;
+        measure.dispose();
+
+        double wordSpacing = 0;
+        if (justify && spaces > 0 && natural < maxW) {
+          wordSpacing = (maxW - natural) / spaces;
+        }
+        final style = base.copyWith(wordSpacing: wordSpacing);
+
+        // Each piece is an inline placeholder; placeholders are laid out in
+        // visual left-to-right order, so add them last piece first (the
+        // original QCF line does the same with `ayahs.reversed`).
+        final children = <InlineSpan>[];
+        for (int i = pieces.length - 1; i >= 0; i--) {
+          final a = pieces[i].ayah;
+          final highlight = highlightMap['${a.surahNumber}_${a.ayahNumber}'];
+          final isHighlighted =
+              highlight != null && highlight.color != Colors.transparent;
+          children.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: GestureDetector(
+                onLongPressStart: (details) => widget.onLongPress?.call(
+                  a.surahNumber,
+                  a.ayahNumber,
+                  details,
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(4.0),
+                    color: isHighlighted
+                        ? highlight.color.withValues(alpha: 0.4)
+                        : null,
+                  ),
+                  child: Text.rich(
+                    TextSpan(children: pieces[i].spans),
+                    style: style,
+                    textDirection: TextDirection.rtl,
+                    softWrap: false,
+                  ),
+                ),
+              ),
+            ),
+          );
+          if (i > 0) {
+            children.add(TextSpan(text: ' ', style: style));
+          }
+        }
+
+        return SizedBox(
+          width: maxW,
+          height: boxH,
+          child: FittedBox(
+            // Never stretch letters; only shrink a line that is too long.
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.center,
+            child: Text.rich(
+              TextSpan(style: style, children: children),
+              textDirection: TextDirection.rtl,
+              softWrap: false,
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
