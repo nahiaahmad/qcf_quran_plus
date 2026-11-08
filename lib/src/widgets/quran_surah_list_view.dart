@@ -262,18 +262,15 @@ class QuranSurahListView extends StatelessWidget {
                 (isDarkMode
                     ? const Color(0xFFF2EEE6)
                     : const Color(0xFF191718));
-            preBuiltAyahWidget = Text.rich(
-              TextSpan(
-                children: DkQuran.spans(
-                  index: DkQuran.indexOf(surahNumber, verseNumber),
-                  tajweed: isTajweed,
-                  ink: ink,
-                  markerColor: markerColor ?? ink.withValues(alpha: 0.5),
-                ),
+            preBuiltAyahWidget = DkText(
+              DkQuran.spans(
+                index: DkQuran.indexOf(surahNumber, verseNumber),
+                tajweed: isTajweed,
+                ink: ink,
+                markerColor: markerColor ?? ink.withValues(alpha: 0.5),
               ),
               style: DkQuran.style(fontSize: fontSize ?? 24, height: 1.9),
               textAlign: TextAlign.right,
-              textDirection: TextDirection.rtl,
             );
           }
 

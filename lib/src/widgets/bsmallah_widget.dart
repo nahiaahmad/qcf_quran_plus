@@ -30,17 +30,14 @@ class BasmallahWidget extends StatelessWidget {
       return Center(
         child: Padding(
           padding: const EdgeInsets.only(top: 5.0),
-          child: Text.rich(
-            TextSpan(
-              children: DkQuran.spans(
-                index: 0,
-                tajweed: isTajweed,
-                ink: ink,
-                withNumber: false,
-              ),
+          child: DkText(
+            DkQuran.spans(
+              index: 0,
+              tajweed: isTajweed,
+              ink: ink,
+              withNumber: false,
             ),
             style: DkQuran.style(fontSize: 21, height: 1.75),
-            textDirection: TextDirection.rtl,
           ),
         ),
       );

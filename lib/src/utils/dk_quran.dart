@@ -1,4 +1,4 @@
-import 'package:flutter/painting.dart';
+import 'package:flutter/widgets.dart';
 
 import '../models/quran_page.dart';
 
@@ -326,6 +326,31 @@ class DkQuran {
     return _pageSizeCache[key] = size;
   }
 
+  /// Fine outline drawn over Mushaf text in each letter's own colour, as a
+  /// fraction of the font size. DigitalKhatt has a single weight; this makes
+  /// the strokes slightly stronger without the heaviness of a bold face
+  /// (owner 2026-11-08: «slightly stronger»). 0 disables it.
+  static const double inkOutlineEm = 0.02;
+
+  /// [spans] restyled as outlines of [width] in each span's own colour.
+  static List<InlineSpan> outlined(List<InlineSpan> spans, double width) => [
+    for (final s in spans)
+      if (s is TextSpan)
+        TextSpan(
+          text: s.text,
+          children: s.children == null ? null : outlined(s.children!, width),
+          style: TextStyle(
+            foreground: Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = width
+              ..strokeJoin = StrokeJoin.round
+              ..color = s.style?.color ?? const Color(0xFF191718),
+          ),
+        )
+      else
+        s,
+  ];
+
   /// Base style for DigitalKhatt text. Callers merge size and height.
   static TextStyle style({double? fontSize, double? height}) => TextStyle(
     fontFamily: fontFamily,
@@ -333,4 +358,39 @@ class DkQuran {
     fontSize: fontSize,
     height: height,
   );
+}
+
+/// DigitalKhatt text drawn with its fine ink outline ([DkQuran.inkOutlineEm]):
+/// the same spans painted twice, filled then outlined, in identical layout.
+class DkText extends StatelessWidget {
+  const DkText(
+    this.spans, {
+    super.key,
+    required this.style,
+    this.textAlign,
+    this.softWrap = true,
+    this.outlineEm = DkQuran.inkOutlineEm,
+  });
+
+  final List<InlineSpan> spans;
+  final TextStyle style;
+  final TextAlign? textAlign;
+  final bool softWrap;
+  final double outlineEm;
+
+  @override
+  Widget build(BuildContext context) {
+    Text text(List<InlineSpan> s) => Text.rich(
+      TextSpan(children: s),
+      style: style,
+      textAlign: textAlign,
+      textDirection: TextDirection.rtl,
+      softWrap: softWrap,
+    );
+    final width = outlineEm * (style.fontSize ?? 14);
+    if (width <= 0) return text(spans);
+    return Stack(
+      children: [text(spans), text(DkQuran.outlined(spans, width))],
+    );
+  }
 }

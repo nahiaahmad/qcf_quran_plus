@@ -346,19 +346,18 @@ extension _DigitalKhattLine on _QuranLineState {
                   textDirection: TextDirection.rtl,
                   children: [
                     if (pieces[i].body.isNotEmpty)
-                      Text.rich(
-                        TextSpan(children: pieces[i].body),
-                        style: style,
-                        textDirection: TextDirection.rtl,
-                        softWrap: false,
-                      ),
+                      DkText(pieces[i].body, style: style, softWrap: false),
                     if (pieces[i].marker != null) ...[
                       if (pieces[i].body.isNotEmpty)
                         SizedBox(width: markerGap),
-                      Text(
-                        pieces[i].marker!,
-                        style: style.copyWith(color: pieces[i].markerColor),
-                        textDirection: TextDirection.rtl,
+                      DkText(
+                        [
+                          TextSpan(
+                            text: pieces[i].marker,
+                            style: TextStyle(color: pieces[i].markerColor),
+                          ),
+                        ],
+                        style: style,
                         softWrap: false,
                       ),
                     ],
