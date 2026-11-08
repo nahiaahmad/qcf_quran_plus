@@ -3,6 +3,7 @@ import 'package:qcf_quran_plus/src/widgets/quran_line.dart';
 import 'package:qcf_quran_plus/src/widgets/surah_header_widget.dart';
 
 import '../models/highlight_verse.dart';
+import '../utils/dk_quran.dart';
 import '../models/quran_page.dart';
 import '../services/get_page.dart';
 import 'bsmallah_widget.dart';
@@ -231,8 +232,19 @@ class QuranSinglePageWidget extends StatelessWidget {
 
               // Render the actual lines of the Quran text
               ...page.lines.map(
-                (line) =>
-                    _buildQuranLine(line, deviceSize, BoxFit.scaleDown, isDark),
+                (line) => _buildQuranLine(
+                  line,
+                  deviceSize,
+                  BoxFit.scaleDown,
+                  isDark,
+                  dkFontSize: useDigitalKhatt
+                      ? DkQuran.pageFontSize(
+                          page,
+                          lineWidth: deviceSize.width - 16,
+                          lineHeight: 0,
+                        )
+                      : null,
+                ),
               ),
             ],
           ),
@@ -290,6 +302,15 @@ class QuranSinglePageWidget extends StatelessWidget {
             double lineHeight =
                 (availableHeight - surahHeaderOffset) * 0.95 / linesCount;
 
+            // DigitalKhatt: one font size for the whole page.
+            final double? dkFontSize = useDigitalKhatt
+                ? DkQuran.pageFontSize(
+                    page,
+                    lineWidth: deviceSize.width - 32,
+                    lineHeight: lineHeight > 0 ? lineHeight : 40,
+                  )
+                : null;
+
             return Column(
               children: [
                 // Insert Header and Basmallah if this line starts a new Surah
@@ -328,6 +349,7 @@ class QuranSinglePageWidget extends StatelessWidget {
                         ? BoxFit.scaleDown
                         : BoxFit.fill,
                     isDark,
+                    dkFontSize: dkFontSize,
                   ),
                 ),
               ],
@@ -343,8 +365,9 @@ class QuranSinglePageWidget extends StatelessWidget {
     Line line,
     Size deviceSize,
     BoxFit boxFit,
-    bool isDark,
-  ) {
+    bool isDark, {
+    double? dkFontSize,
+  }) {
     return RepaintBoundary(
       child: QuranLine(
         line,
@@ -358,6 +381,7 @@ class QuranSinglePageWidget extends StatelessWidget {
         useDigitalKhatt: useDigitalKhatt,
         inkColor: inkColor,
         markerColor: markerColor,
+        dkFontSize: dkFontSize,
       ),
     );
   }

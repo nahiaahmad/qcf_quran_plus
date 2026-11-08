@@ -23,6 +23,7 @@ class QuranLine extends StatefulWidget {
     this.useDigitalKhatt = false,
     this.inkColor,
     this.markerColor,
+    this.dkFontSize,
   });
 
   final Line line;
@@ -59,6 +60,11 @@ class QuranLine extends StatefulWidget {
 
   /// DigitalKhatt only: colour of the end-of-verse sign and number.
   final Color? markerColor;
+
+  /// DigitalKhatt only: the page's font size (see [DkQuran.pageFontSize]) so
+  /// every line of a page has the same letter size. Defaults to one that fills
+  /// the line height.
+  final double? dkFontSize;
 
   @override
   State<QuranLine> createState() => _QuranLineState();
@@ -257,11 +263,6 @@ class _QuranLineState extends State<QuranLine> {
 }
 
 extension _DigitalKhattLine on _QuranLineState {
-  /// Line height as a multiple of the font size. DigitalKhatt's own line box is
-  /// 2.4 em (room for stacked marks); a Mushaf line is tighter, and marks may
-  /// reach into the gap between lines exactly as on the printed page.
-  static const double _lineHeightEm = 1.75;
-
   Widget _buildDigitalKhatt(BuildContext context) {
     final ink =
         widget.inkColor ??
@@ -280,10 +281,13 @@ extension _DigitalKhattLine on _QuranLineState {
         final boxH = constraints.maxHeight.isFinite
             ? constraints.maxHeight
             : 44.0;
-        final fontSize = widget.ayahStyle?.fontSize ?? boxH / _lineHeightEm;
+        final fontSize =
+            widget.dkFontSize ??
+            widget.ayahStyle?.fontSize ??
+            boxH / DkQuran.pageLineHeightEm;
         final base = DkQuran.style(
           fontSize: fontSize,
-          height: _lineHeightEm,
+          height: DkQuran.pageLineHeightEm,
         ).copyWith(leadingDistribution: TextLeadingDistribution.even);
 
         // Pieces in reading order (the line's ayahs are stored in order).
@@ -319,9 +323,12 @@ extension _DigitalKhattLine on _QuranLineState {
         final spaces = ' '.allMatches(plain).length;
         measure.dispose();
 
-        double wordSpacing = 0;
-        if (justify && spaces > 0 && natural < maxW) {
-          wordSpacing = (maxW - natural) / spaces;
+        // Every gap gets at least the minimum extra space; a justified line
+        // spreads the rest of the width over its gaps.
+        double wordSpacing = DkQuran.minWordGapEm * fontSize;
+        if (justify && spaces > 0) {
+          final fill = (maxW - natural) / spaces;
+          if (fill > wordSpacing) wordSpacing = fill;
         }
         final style = base.copyWith(wordSpacing: wordSpacing);
 

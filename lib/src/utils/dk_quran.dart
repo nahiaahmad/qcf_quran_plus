@@ -1,5 +1,7 @@
 import 'package:flutter/painting.dart';
 
+import '../models/quran_page.dart';
+
 import '../data/dk_data.dart';
 import '../data/quran_data.dart' show quran;
 
@@ -167,6 +169,80 @@ class DkQuran {
       out[out.length - 1] = TextSpan(text: t, style: last.style);
     }
     return out;
+  }
+
+  /// Line height (as a multiple of the font size) used on Mushaf pages.
+  /// DigitalKhatt's own line box is 2.4 em; marks may reach into the gap
+  /// between lines exactly as on the printed page.
+  static const double pageLineHeightEm = 1.75;
+
+  /// Page font size bounds as a fraction of the line width. One size per page
+  /// keeps every line's letters the same size; the band keeps the size from
+  /// jumping between pages (about 21–25 on a 6.1" phone).
+  static const double _maxSizePerWidth = 0.0615;
+  static const double _minSizePerWidth = 0.0515;
+
+  /// Minimum extra space added to every word gap, as a fraction of the font
+  /// size. DigitalKhatt's own space is narrow; without this the longest line
+  /// of a page (which sets the page size) would look cramped next to the
+  /// widened lines around it.
+  static const double minWordGapEm = 0.25;
+
+  static final Map<String, double> _pageSizeCache = {};
+
+  /// The font size for every justified line of [page]: the largest size at
+  /// which its longest line fits [lineWidth], kept within the band above and
+  /// never taller than [lineHeight] allows. A line still too long at the
+  /// minimum is shrunk on its own by the line widget.
+  static double pageFontSize(
+    QuranPage page, {
+    required double lineWidth,
+    required double lineHeight,
+  }) {
+    final key = '${page.pageNumber}|${lineWidth.round()}|${lineHeight.round()}';
+    final cached = _pageSizeCache[key];
+    if (cached != null) return cached;
+
+    final maxSize = lineWidth * _maxSizePerWidth;
+    final minSize = lineWidth * _minSizePerWidth;
+    double size = maxSize;
+    if (lineHeight > 0) {
+      final byHeight = lineHeight / pageLineHeightEm;
+      if (byHeight < size) size = byHeight;
+    }
+    const probe = 20.0;
+    for (final line in page.lines) {
+      if (line.ayahs.isEmpty || line.ayahs.last.centered) continue;
+      final spans = <InlineSpan>[];
+      for (int i = 0; i < line.ayahs.length; i++) {
+        final a = line.ayahs[i];
+        spans.addAll(
+          DkQuran.spans(
+            index: a.id - 1,
+            part: a.linePart,
+            tajweed: false,
+            ink: const Color(0xFF000000),
+          ),
+        );
+        if (i < line.ayahs.length - 1) spans.add(const TextSpan(text: ' '));
+      }
+      final tp = TextPainter(
+        textDirection: TextDirection.rtl,
+        text: TextSpan(
+          style: style(fontSize: probe, height: pageLineHeightEm),
+          children: spans,
+        ),
+      )..layout();
+      final natural = tp.maxIntrinsicWidth;
+      final spaces = ' '.allMatches(tp.text!.toPlainText()).length;
+      tp.dispose();
+      if (natural <= 0) continue;
+      // Width at size f: natural * f / probe + spaces * minWordGapEm * f.
+      final fit = lineWidth / (natural / probe + spaces * minWordGapEm);
+      if (fit < size) size = fit;
+    }
+    if (size < minSize) size = minSize;
+    return _pageSizeCache[key] = size;
   }
 
   /// Base style for DigitalKhatt text. Callers merge size and height.
