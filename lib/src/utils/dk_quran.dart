@@ -154,8 +154,19 @@ class DkQuran {
     }
 
     if (markerAt >= 0 && withNumber) {
-      // Keep a plain space before the sign (it is already in the text) and
-      // draw the sign + number in the marker colour.
+      // DigitalKhatt pulls a plain space before the verse-end sign to zero
+      // width (its own layout engine adds the gap). In flowing text use an
+      // en space, which the font leaves alone.
+      if (out.isNotEmpty) {
+        final last = out.last as TextSpan;
+        final t = last.text!;
+        if (t.endsWith(' ')) {
+          out[out.length - 1] = TextSpan(
+            text: '${t.substring(0, t.length - 1)}\u2002',
+            style: last.style,
+          );
+        }
+      }
       out.add(
         TextSpan(
           text: full.substring(markerAt, end),
@@ -169,6 +180,89 @@ class DkQuran {
       out[out.length - 1] = TextSpan(text: t, style: last.style);
     }
     return out;
+  }
+
+  /// One verse piece of a Mushaf line: its text and, when the verse ends on
+  /// this line, the end-of-verse sign + number as a separate word. Drawing
+  /// the sign apart gives it the same justified gap as any other word gap
+  /// (DigitalKhatt would otherwise pull the space before it to zero).
+  static ({List<InlineSpan> body, String? marker, Color markerColor}) piece({
+    required int index,
+    required int part,
+    required bool tajweed,
+    required Color ink,
+    Color? markerColor,
+  }) {
+    final all = spans(
+      index: index,
+      part: part,
+      tajweed: tajweed,
+      ink: ink,
+      markerColor: markerColor,
+    );
+    String? marker;
+    final body = <InlineSpan>[...all];
+    if (body.isNotEmpty) {
+      final last = body.last as TextSpan;
+      if (last.text!.startsWith(verseEndSign)) {
+        marker = last.text;
+        body.removeLast();
+        if (body.isNotEmpty) {
+          final b = body.last as TextSpan;
+          final t = b.text!.trimRight();
+          if (t.isEmpty) {
+            body.removeLast();
+          } else {
+            body[body.length - 1] = TextSpan(text: t, style: b.style);
+          }
+        }
+      }
+    }
+    return (body: body, marker: marker, markerColor: markerColor ?? ink);
+  }
+
+  /// Natural width of a Mushaf line made of [pieces] at [fontSize], and the
+  /// number of word gaps that justification may widen (spaces inside the
+  /// text, the gap before each verse sign, the gap between pieces). Also
+  /// returns the width of one plain space.
+  static ({double width, int gaps, double space}) measureLine(
+    List<({List<InlineSpan> body, String? marker, Color markerColor})> pieces,
+    double fontSize,
+  ) {
+    final st = style(fontSize: fontSize, height: pageLineHeightEm);
+    double measure(InlineSpan span) {
+      final tp = TextPainter(
+        textDirection: TextDirection.rtl,
+        text: TextSpan(style: st, children: [span]),
+      )..layout();
+      final w = tp.maxIntrinsicWidth;
+      tp.dispose();
+      return w;
+    }
+
+    final space = measure(const TextSpan(text: ' '));
+    double width = 0;
+    int gaps = 0;
+    for (int i = 0; i < pieces.length; i++) {
+      final p = pieces[i];
+      if (p.body.isNotEmpty) {
+        final body = TextSpan(children: p.body);
+        width += measure(body);
+        gaps += ' '.allMatches(body.toPlainText()).length;
+      }
+      if (p.marker != null) {
+        width += measure(TextSpan(text: p.marker));
+        if (p.body.isNotEmpty) {
+          width += space;
+          gaps++;
+        }
+      }
+      if (i < pieces.length - 1) {
+        width += space;
+        gaps++;
+      }
+    }
+    return (width: width, gaps: gaps, space: space);
   }
 
   /// Line height (as a multiple of the font size) used on Mushaf pages.
@@ -213,32 +307,19 @@ class DkQuran {
     const probe = 20.0;
     for (final line in page.lines) {
       if (line.ayahs.isEmpty || line.ayahs.last.centered) continue;
-      final spans = <InlineSpan>[];
-      for (int i = 0; i < line.ayahs.length; i++) {
-        final a = line.ayahs[i];
-        spans.addAll(
-          DkQuran.spans(
+      final pieces = [
+        for (final a in line.ayahs)
+          piece(
             index: a.id - 1,
             part: a.linePart,
             tajweed: false,
             ink: const Color(0xFF000000),
           ),
-        );
-        if (i < line.ayahs.length - 1) spans.add(const TextSpan(text: ' '));
-      }
-      final tp = TextPainter(
-        textDirection: TextDirection.rtl,
-        text: TextSpan(
-          style: style(fontSize: probe, height: pageLineHeightEm),
-          children: spans,
-        ),
-      )..layout();
-      final natural = tp.maxIntrinsicWidth;
-      final spaces = ' '.allMatches(tp.text!.toPlainText()).length;
-      tp.dispose();
-      if (natural <= 0) continue;
-      // Width at size f: natural * f / probe + spaces * minWordGapEm * f.
-      final fit = lineWidth / (natural / probe + spaces * minWordGapEm);
+      ];
+      final m = measureLine(pieces, probe);
+      if (m.width <= 0) continue;
+      // Width at size f: m.width * f / probe + gaps * minWordGapEm * f.
+      final fit = lineWidth / (m.width / probe + m.gaps * minWordGapEm);
       if (fit < size) size = fit;
     }
     if (size < minSize) size = minSize;

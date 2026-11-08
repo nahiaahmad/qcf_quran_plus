@@ -293,83 +293,80 @@ extension _DigitalKhattLine on _QuranLineState {
         // Pieces in reading order (the line's ayahs are stored in order).
         final pieces = [
           for (final a in widget.line.ayahs)
-            (
-              ayah: a,
-              spans: DkQuran.spans(
-                index: a.id - 1,
-                part: a.linePart,
-                tajweed: widget.isTajweed,
-                ink: ink,
-                markerColor: marker,
-              ),
+            DkQuran.piece(
+              index: a.id - 1,
+              part: a.linePart,
+              tajweed: widget.isTajweed,
+              ink: ink,
+              markerColor: marker,
             ),
         ];
 
-        // Natural width of the whole line with single spaces between pieces.
-        final measure = TextPainter(
-          textDirection: TextDirection.rtl,
-          text: TextSpan(
-            style: base,
-            children: [
-              for (int i = 0; i < pieces.length; i++) ...[
-                ...pieces[i].spans,
-                if (i < pieces.length - 1) const TextSpan(text: ' '),
-              ],
-            ],
-          ),
-        )..layout();
-        final natural = measure.maxIntrinsicWidth;
-        final plain = measure.text!.toPlainText();
-        final spaces = ' '.allMatches(plain).length;
-        measure.dispose();
+        final m = DkQuran.measureLine(pieces, fontSize);
+        final natural = m.width;
+        final spaces = m.gaps;
 
         // Every gap gets at least the minimum extra space; a justified line
-        // spreads the rest of the width over its gaps.
+        // spreads the rest of the width over its gaps. The gap before a verse
+        // sign counts as a word gap too.
         double wordSpacing = DkQuran.minWordGapEm * fontSize;
         if (justify && spaces > 0) {
           final fill = (maxW - natural) / spaces;
           if (fill > wordSpacing) wordSpacing = fill;
         }
         final style = base.copyWith(wordSpacing: wordSpacing);
+        final markerGap = m.space + wordSpacing;
 
-        // Each piece is an inline placeholder; placeholders are laid out in
-        // visual left-to-right order, so add them last piece first (the
-        // original QCF line does the same with `ayahs.reversed`).
-        final children = <InlineSpan>[];
-        for (int i = pieces.length - 1; i >= 0; i--) {
-          final a = pieces[i].ayah;
+        // A Row lays the pieces out right-to-left in reading order. Gaps are
+        // explicit boxes of exactly one justified word gap: DigitalKhatt would
+        // pull a plain space next to a verse sign to zero width.
+        final children = <Widget>[];
+        for (int i = 0; i < pieces.length; i++) {
+          final a = widget.line.ayahs[i];
           final highlight = highlightMap['${a.surahNumber}_${a.ayahNumber}'];
           final isHighlighted =
               highlight != null && highlight.color != Colors.transparent;
+          if (i > 0) children.add(SizedBox(width: markerGap));
           children.add(
-            WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: GestureDetector(
-                onLongPressStart: (details) => widget.onLongPress?.call(
-                  a.surahNumber,
-                  a.ayahNumber,
-                  details,
+            GestureDetector(
+              onLongPressStart: (details) => widget.onLongPress?.call(
+                a.surahNumber,
+                a.ayahNumber,
+                details,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4.0),
+                  color: isHighlighted
+                      ? highlight.color.withValues(alpha: 0.4)
+                      : null,
                 ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4.0),
-                    color: isHighlighted
-                        ? highlight.color.withValues(alpha: 0.4)
-                        : null,
-                  ),
-                  child: Text.rich(
-                    TextSpan(children: pieces[i].spans),
-                    style: style,
-                    textDirection: TextDirection.rtl,
-                    softWrap: false,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  textDirection: TextDirection.rtl,
+                  children: [
+                    if (pieces[i].body.isNotEmpty)
+                      Text.rich(
+                        TextSpan(children: pieces[i].body),
+                        style: style,
+                        textDirection: TextDirection.rtl,
+                        softWrap: false,
+                      ),
+                    if (pieces[i].marker != null) ...[
+                      if (pieces[i].body.isNotEmpty)
+                        SizedBox(width: markerGap),
+                      Text(
+                        pieces[i].marker!,
+                        style: style.copyWith(color: pieces[i].markerColor),
+                        textDirection: TextDirection.rtl,
+                        softWrap: false,
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
           );
-          if (i > 0) {
-            children.add(TextSpan(text: ' ', style: style));
-          }
         }
 
         return SizedBox(
@@ -379,10 +376,11 @@ extension _DigitalKhattLine on _QuranLineState {
             // Never stretch letters; only shrink a line that is too long.
             fit: BoxFit.scaleDown,
             alignment: Alignment.center,
-            child: Text.rich(
-              TextSpan(style: style, children: children),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               textDirection: TextDirection.rtl,
-              softWrap: false,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: children,
             ),
           ),
         );
