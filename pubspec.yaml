@@ -31,7 +31,9 @@ flutter:
   assets:
     - assets/fonts/
     - assets/surah_banner.png
-    - assets/fonts/qcf_tajweed/
+    # assets/fonts/qcf_tajweed/ (604 QCF4 page fonts, ~67 MB) is no longer
+    # bundled: ShiaNur draws the Mushaf in DigitalKhatt since build 29. The
+    # files stay in the repo; QcfFontLoader must not be called by the app.
     - assets/fonts/digitalkhatt/OFL.txt
   #   - images/a_dot_ham.jpeg
   #
