@@ -116,6 +116,15 @@ class GetPage {
       _cachedSurahs.last.ayahs = thisSurahAyahs;
     }
 
+    // As in the print: these surahs' banners close the previous page.
+    for (final surah in _cachedSurahs) {
+      if (surahsWithBannerOnPreviousPage.contains(surah.index) &&
+          surah.startPage >= 2) {
+        _cachedStaticPages[surah.startPage - 2].trailingBannerSurah =
+            surah.index;
+      }
+    }
+
     // Proceed to slice Ayahs into visual lines
     _generateLines();
   }

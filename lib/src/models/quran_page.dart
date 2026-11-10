@@ -27,6 +27,11 @@ class QuranPage {
   /// Indicates if this is the final line of a Surah or the Mushaf.
   bool lastLine;
 
+  /// The surah whose banner the print draws on this page's last line, under
+  /// the text, while the surah itself opens on the next page with its
+  /// basmala (see [surahsWithBannerOnPreviousPage]). Null on most pages.
+  int? trailingBannerSurah;
+
   /// Creates a [QuranPage] with the required layout and content data.
   QuranPage({
     required this.pageNumber,
@@ -36,8 +41,17 @@ class QuranPage {
     this.hasSajda = false,
     this.lastLine = false,
     this.numberOfNewSurahs = 0,
+    this.trailingBannerSurah,
   });
 }
+
+/// Surahs whose banner the King Fahd 1421 Madinah print puts on the LAST line
+/// of the previous page (14 lines of text there); the surah's own page opens
+/// with the basmala and 14 lines of text. Checked against the print's line
+/// table for all 604 pages (tool/print_lines_1421.json, tool/fix_print_lines.py).
+const Set<int> surahsWithBannerOnPreviousPage = {
+  4, 10, 22, 23, 24, 26, 27, 32, 33, 37, 38, 45, 47, 53, 60, 64, 65, 80,
+};
 
 /// Represents a single horizontal row of text on a Quranic page.
 ///

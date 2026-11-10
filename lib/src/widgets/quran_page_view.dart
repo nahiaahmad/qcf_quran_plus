@@ -289,13 +289,20 @@ class QuranSinglePageWidget extends StatelessWidget {
                 ? constraints.maxHeight
                 : deviceSize.width);
 
-            // Calculate how much space is taken up by Surah headers/Basmallahs on this page
-            // Note: Surah 9 (At-Tawbah) does not have a Basmallah
-            double surahHeaderOffset =
-                (page.numberOfNewSurahs *
-                (line.ayahs.isNotEmpty && line.ayahs[0].surahNumber != 9
-                    ? 110
-                    : 80));
+            // Space taken by surah banners and basmalas on this page: a banner
+            // 80, a basmala 30 (banner + basmala 110, At-Tawbah's banner alone
+            // 80, as before). A surah whose banner closes the previous page
+            // (print layout) has only its basmala here; that page reserves the
+            // banner.
+            double surahHeaderOffset = 0;
+            for (final a in page.ayahs) {
+              if (a.ayahNumber != 1) continue;
+              if (!surahsWithBannerOnPreviousPage.contains(a.surahNumber)) {
+                surahHeaderOffset += 80;
+              }
+              if (a.surahNumber != 9) surahHeaderOffset += 30;
+            }
+            if (page.trailingBannerSurah != null) surahHeaderOffset += 80;
 
             // Dynamically calculate the height of each line to ensure the text fills the page perfectly
             int linesCount = page.lines.isNotEmpty ? page.lines.length : 1;
@@ -314,12 +321,17 @@ class QuranSinglePageWidget extends StatelessWidget {
             return Column(
               children: [
                 // Insert Header and Basmallah if this line starts a new Surah
+                // (the header stays on the previous page for the surahs the
+                // print opens with their basmala alone).
                 if (isFirstAyahInSurah && line.ayahs.isNotEmpty) ...[
-                  surahHeaderBuilder?.call(
-                        context,
-                        line.ayahs[0].surahNumber,
-                      ) ??
-                      SurahHeaderWidget(suraNumber: line.ayahs[0].surahNumber),
+                  if (!surahsWithBannerOnPreviousPage
+                      .contains(line.ayahs[0].surahNumber))
+                    surahHeaderBuilder?.call(
+                          context,
+                          line.ayahs[0].surahNumber,
+                        ) ??
+                        SurahHeaderWidget(
+                            suraNumber: line.ayahs[0].surahNumber),
 
                   // Add Basmallah unless it's Surah 9 (At-Tawbah)
                   if (line.ayahs[0].surahNumber != 9)
@@ -352,6 +364,12 @@ class QuranSinglePageWidget extends StatelessWidget {
                     dkFontSize: dkFontSize,
                   ),
                 ),
+
+                // The next surah's banner under the last line, as in the print.
+                if (lineIndex == page.lines.length - 1 &&
+                    page.trailingBannerSurah != null)
+                  surahHeaderBuilder?.call(context, page.trailingBannerSurah!) ??
+                      SurahHeaderWidget(suraNumber: page.trailingBannerSurah!),
               ],
             );
           },
