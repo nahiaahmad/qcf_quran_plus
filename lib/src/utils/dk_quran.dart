@@ -1,3 +1,5 @@
+import 'dart:ui' show FontFeature;
+
 import 'package:flutter/widgets.dart';
 
 import '../models/quran_page.dart';
@@ -227,9 +229,11 @@ class DkQuran {
   /// returns the width of one plain space.
   static ({double width, int gaps, double space}) measureLine(
     List<({List<InlineSpan> body, String? marker, Color markerColor})> pieces,
-    double fontSize,
-  ) {
-    final st = style(fontSize: fontSize, height: pageLineHeightEm);
+    double fontSize, {
+    List<FontFeature> features = const [],
+  }) {
+    final st = style(fontSize: fontSize, height: pageLineHeightEm)
+        .copyWith(fontFeatures: features);
     double measure(InlineSpan span) {
       final tp = TextPainter(
         textDirection: TextDirection.rtl,
@@ -270,24 +274,33 @@ class DkQuran {
   /// between lines exactly as on the printed page.
   static const double pageLineHeightEm = 1.75;
 
-  /// Page font size bounds as a fraction of the line width. One size per page
-  /// keeps every line's letters the same size; the band keeps the size from
-  /// jumping between pages (about 21–25 on a 6.1" phone).
-  static const double _maxSizePerWidth = 0.0615;
-  static const double _minSizePerWidth = 0.0515;
+  /// Page letter size, as a fraction of the line width: aim for
+  /// [pageSizePerWidth] (22.5 on a 398-wide line); a page goes smaller only
+  /// when one of its lines would otherwise be shrunk by more than
+  /// [maxLineShrink], and never below [minSizePerWidth] (21).
+  static const double pageSizePerWidth = 0.0565;
+  static const double minSizePerWidth = 0.0527;
+  static const double maxLineShrink = 0.12;
 
-  /// Minimum extra space added to every word gap, as a fraction of the font
-  /// size. DigitalKhatt's own space is narrow; without this the longest line
-  /// of a page (which sets the page size) would look cramped next to the
-  /// widened lines around it.
-  static const double minWordGapEm = 0.25;
+  /// Word gaps, as a fraction of the font size: a line that has room keeps
+  /// at least [comfortableGapEm]; a long line may close down to [tightGapEm]
+  /// before it is shrunk.
+  static const double comfortableGapEm = 0.15;
+  static const double tightGapEm = 0.10;
+
+  /// Kept for callers that still read it: the comfortable gap.
+  static const double minWordGapEm = comfortableGapEm;
+
+  /// DigitalKhatt's stretched (kashida) letter forms, used to fill a line
+  /// that has room. Its narrow forms (shr1, shr2, shrr) are NOT used: applied
+  /// outside DigitalKhatt's own engine they drop or merge letters (ٱلَّذِي
+  /// drawn without its alif, أموالهم squashed), checked 2026-11-11.
+  static const List<FontFeature> stretchedForms = [FontFeature('jalt')];
 
   static final Map<String, double> _pageSizeCache = {};
 
-  /// The font size for every justified line of [page]: the largest size at
-  /// which its longest line fits [lineWidth], kept within the band above and
-  /// never taller than [lineHeight] allows. A line still too long at the
-  /// minimum is shrunk on its own by the line widget.
+  /// The letter size of every line of [page] (see [pageSizePerWidth]),
+  /// never taller than one line slot ([lineHeight]) allows.
   static double pageFontSize(
     QuranPage page, {
     required double lineWidth,
@@ -296,10 +309,7 @@ class DkQuran {
     final key = '${page.pageNumber}|${lineWidth.round()}|${lineHeight.round()}';
     final cached = _pageSizeCache[key];
     if (cached != null) return cached;
-
-    final maxSize = lineWidth * _maxSizePerWidth;
-    final minSize = lineWidth * _minSizePerWidth;
-    double size = maxSize;
+    double size = lineWidth * pageSizePerWidth;
     if (lineHeight > 0) {
       final byHeight = lineHeight / pageLineHeightEm;
       if (byHeight < size) size = byHeight;
@@ -307,7 +317,7 @@ class DkQuran {
     const probe = 20.0;
     for (final line in page.lines) {
       if (line.ayahs.isEmpty || line.ayahs.last.centered) continue;
-      final pieces = [
+      final m = measureLine([
         for (final a in line.ayahs)
           piece(
             index: a.id - 1,
@@ -315,15 +325,145 @@ class DkQuran {
             tajweed: false,
             ink: const Color(0xFF000000),
           ),
-      ];
-      final m = measureLine(pieces, probe);
+      ], probe);
       if (m.width <= 0) continue;
-      // Width at size f: m.width * f / probe + gaps * minWordGapEm * f.
-      final fit = lineWidth / (m.width / probe + m.gaps * minWordGapEm);
-      if (fit < size) size = fit;
+      final fits = lineWidth / (m.width / probe + m.gaps * tightGapEm);
+      final allowed = fits / (1 - maxLineShrink);
+      if (allowed < size) size = allowed;
     }
-    if (size < minSize) size = minSize;
+    final floor = lineWidth * minSizePerWidth;
+    if (size < floor) size = floor;
     return _pageSizeCache[key] = size;
+  }
+
+  static final Map<String,
+          ({List<FontFeature> features, double wordSpacing, Set<int> stretch})>
+      _lineCache = {};
+
+  /// [pieces] with the words numbered in [words] (counted across the whole
+  /// line, verse signs not counted) drawn in their stretched forms.
+  static List<({List<InlineSpan> body, String? marker, Color markerColor})>
+      stretchWords(
+    List<({List<InlineSpan> body, String? marker, Color markerColor})> pieces,
+    Set<int> words,
+  ) {
+    if (words.isEmpty) return pieces;
+    int word = 0;
+    final out =
+        <({List<InlineSpan> body, String? marker, Color markerColor})>[];
+    for (int pi = 0; pi < pieces.length; pi++) {
+      final p = pieces[pi];
+      if (pi > 0) word++; // the gap between two pieces ends a word
+      final body = <InlineSpan>[];
+      bool inWord = false;
+      for (final span in p.body) {
+        final ts = span as TextSpan;
+        final text = ts.text ?? '';
+        final buf = StringBuffer();
+        bool? bufStretch;
+        void flush() {
+          if (buf.isEmpty) return;
+          body.add(TextSpan(
+            text: buf.toString(),
+            style: bufStretch == true
+                ? (ts.style ?? const TextStyle())
+                    .copyWith(fontFeatures: stretchedForms)
+                : ts.style,
+          ));
+          buf.clear();
+        }
+
+        for (final ch in text.split('')) {
+          final isSpace = ch == ' ' || ch == '\u2002';
+          if (isSpace) {
+            if (inWord) word++;
+            inWord = false;
+          } else {
+            inWord = true;
+          }
+          final st = !isSpace && words.contains(word);
+          if (bufStretch != null && st != bufStretch) flush();
+          bufStretch = st;
+          buf.write(ch);
+        }
+        flush();
+      }
+      out.add((body: body, marker: p.marker, markerColor: p.markerColor));
+    }
+    return out;
+  }
+
+  static int _wordCount(
+      List<({List<InlineSpan> body, String? marker, Color markerColor})>
+          pieces) {
+    int n = 0;
+    for (final p in pieces) {
+      final t = TextSpan(children: p.body).toPlainText().trim();
+      if (t.isNotEmpty) n += t.split(RegExp(r'[ \u2002]+')).length;
+    }
+    return n;
+  }
+
+  /// How a justified line of [pieces] fills [width] at [fontSize], the way
+  /// a scribe does it: a line with room stretches its letters (kashida) —
+  /// all of them, or as many words, spread along the line, as still leave a
+  /// comfortable gap — then widens its word gaps; a long line closes its
+  /// gaps to [tightGapEm]. A line still too long is shrunk by the line widget.
+  /// [key] caches the answer (e.g. page:line:width:size).
+  static ({List<FontFeature> features, double wordSpacing, Set<int> stretch})
+      fitLine(
+    List<({List<InlineSpan> body, String? marker, Color markerColor})> pieces,
+    double fontSize,
+    double width, {
+    String? key,
+  }) {
+    if (key != null) {
+      final hit = _lineCache[key];
+      if (hit != null) return hit;
+    }
+    ({List<FontFeature> features, double wordSpacing, Set<int> stretch})
+        done(List<FontFeature> f, double natural, int gaps, double minGapEm,
+            [Set<int> stretch = const {}]) {
+      double ws = minGapEm * fontSize;
+      if (gaps > 0) {
+        final fill = (width - natural) / gaps;
+        if (fill > ws) ws = fill;
+      }
+      final r = (features: f, wordSpacing: ws, stretch: stretch);
+      if (key != null) _lineCache[key] = r;
+      return r;
+    }
+
+    final plain = measureLine(pieces, fontSize);
+    final g = plain.gaps;
+    final comfortable = g * comfortableGapEm * fontSize;
+    if (plain.width + comfortable <= width) {
+      final stretched =
+          measureLine(pieces, fontSize, features: stretchedForms);
+      if (stretched.width + comfortable <= width) {
+        return done(stretchedForms, stretched.width, g, comfortableGapEm);
+      }
+      // Stretch only some words, spread along the line, as many as fit.
+      final n = _wordCount(pieces);
+      final extra = width - comfortable - plain.width;
+      final per = (stretched.width - plain.width) / (n > 0 ? n : 1);
+      int k = per > 0 ? (extra / per).floor() : 0;
+      if (k >= n) k = n - 1;
+      while (k > 0) {
+        final chosen = <int>{
+          for (int i = 0; i < k; i++) ((i + 0.5) * n / k).floor(),
+        };
+        final m = measureLine(stretchWords(pieces, chosen), fontSize);
+        if (m.width + comfortable <= width) {
+          return done(const [], m.width, g, comfortableGapEm, chosen);
+        }
+        k--;
+      }
+      return done(const [], plain.width, g, comfortableGapEm);
+    }
+    // A long line closes its gaps; if still too long, the line widget
+    // shrinks it (by at most maxLineShrink above the page floor).
+    return done(const [], plain.width, g, tightGapEm);
   }
 
   /// Fine outline drawn over Mushaf text in each letter's own colour, as a
@@ -339,7 +479,10 @@ class DkQuran {
         TextSpan(
           text: s.text,
           children: s.children == null ? null : outlined(s.children!, width),
+          // The outline keeps each span's letter forms (a stretched word
+          // stays stretched), so it lies exactly on the fill.
           style: TextStyle(
+            fontFeatures: s.style?.fontFeatures,
             foreground: Paint()
               ..style = PaintingStyle.stroke
               ..strokeWidth = width

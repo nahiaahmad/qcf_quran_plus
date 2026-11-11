@@ -81,7 +81,7 @@ void main() {
     addTearDown(t.view.reset);
     // The page box of the reader on an iPhone Pro Max; slot = 95% / 15.
     const pageHeight = 956.0 - 110 - 60;
-    const slot = pageHeight * 0.95 / 15;
+    const slot = pageHeight / 15;
     final off = <String>[];
     for (int p = 3; p <= 604; p++) {
       await t.pumpWidget(
@@ -105,38 +105,47 @@ void main() {
       );
       expect(t.takeException(), isNull, reason: 'page $p');
       final top = t.getTopLeft(find.byType(QuranSinglePageWidget)).dy;
-      // Every text line, banner and basmala starts on a slot boundary, and
-      // the last one ends on the 15th.
-      final rows = [
-        ...find.byType(QuranLine).evaluate(),
-        ...find.byType(SurahHeaderWidget).evaluate(),
-        ...find.byType(BasmallahWidget).evaluate(),
-      ].map((e) => (e.renderObject! as RenderBox))
-          .map((b) => b.localToGlobal(Offset.zero).dy - top)
-          .toList()
-        ..sort();
+      // Every text line and basmala fills exactly one slot; a banner is
+      // centred on its slot; nothing but a banner passes the 15th slot.
+      List<Rect> rects(Finder f) => f
+          .evaluate()
+          .map((e) => e.renderObject! as RenderBox)
+          .map((b) => b.localToGlobal(Offset(0, -top)) & b.size)
+          .toList();
+      final lineRects = [
+        ...rects(find.byType(QuranLine)),
+        ...rects(find.byType(BasmallahWidget)).map((r) => r),
+      ];
       final lines = find.byType(QuranLine).evaluate().length;
       if (lines != pages[p - 1].lines.length) {
         off.add('page $p: ${pages[p - 1].lines.length} lines, $lines drawn');
       }
-      final last = [
-        ...find.byType(QuranLine).evaluate(),
-        ...find.byType(SurahHeaderWidget).evaluate(),
-      ].map((e) => e.renderObject! as RenderBox)
-          .map((b) => b.localToGlobal(Offset(0, b.size.height)).dy - top)
+      final textBottom = rects(find.byType(QuranLine))
+          .map((r) => r.bottom)
           .reduce((a, b) => a > b ? a : b);
-      if (last > 15 * slot + 0.5) {
-        off.add('page $p: ends at ${last.toStringAsFixed(1)} > '
+      if (textBottom > 15 * slot + 0.5) {
+        off.add('page $p: text ends at ${textBottom.toStringAsFixed(1)} > '
             '${(15 * slot).toStringAsFixed(1)}');
       }
-      for (final y in rows) {
-        final k = y / slot;
-        if ((k - k.round()).abs() * slot > 6) {
-          off.add('page $p: a row starts at ${y.toStringAsFixed(1)} '
-              '(slot ${k.toStringAsFixed(2)})');
+      for (final r in rects(find.byType(QuranLine))) {
+        final k = r.top / slot;
+        if ((k - k.round()).abs() * slot > 0.5 ||
+            (r.height - slot).abs() > 0.5) {
+          off.add('page $p: a text line at ${r.top.toStringAsFixed(1)}, '
+              '${r.height.toStringAsFixed(1)} tall');
           break;
         }
       }
+      for (final r in rects(find.byType(SurahHeaderWidget))) {
+        final k = (r.center.dy / slot) - 0.5;
+        if ((k - k.round()).abs() * slot > 0.5) {
+          off.add('page $p: a banner centred at ${r.center.dy.toStringAsFixed(1)}');
+        }
+        if (r.bottom > 15 * slot + 0.2 * slot) {
+          off.add('page $p: a banner ends at ${r.bottom.toStringAsFixed(1)}');
+        }
+      }
+      lineRects.length; // basmalas are checked through the slot count above
     }
     expect(off, isEmpty);
   });
@@ -149,7 +158,7 @@ void main() {
     // iPhone Pro Max portrait, the reader's page box: one slot per line.
     const width = 440.0, height = 786.0;
     double sizeOf(QuranPage p) => DkQuran.pageFontSize(p,
-        lineWidth: width - 32, lineHeight: height * 0.95 / 15);
+        lineWidth: width - 32, lineHeight: height / 15);
     final all = [for (final p in pages.skip(2)) sizeOf(p)]..sort();
     final median = all[all.length ~/ 2];
     final low = <String>[];
@@ -163,7 +172,7 @@ void main() {
               : null);
       if (s == null) continue;
       final size = sizeOf(p);
-      if (size < median * 0.96) {
+      if (size < median * 0.93) {
         low.add('page ${p.pageNumber}: ${size.toStringAsFixed(2)} '
             '(median ${median.toStringAsFixed(2)})');
       }

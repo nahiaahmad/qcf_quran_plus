@@ -1,3 +1,5 @@
+import 'dart:ui' show FontFeature;
+
 import 'package:flutter/material.dart';
 import '../../qcf_quran_plus.dart';
 
@@ -291,7 +293,7 @@ extension _DigitalKhattLine on _QuranLineState {
         ).copyWith(leadingDistribution: TextLeadingDistribution.even);
 
         // Pieces in reading order (the line's ayahs are stored in order).
-        final pieces = [
+        var pieces = [
           for (final a in widget.line.ayahs)
             DkQuran.piece(
               index: a.id - 1,
@@ -302,20 +304,29 @@ extension _DigitalKhattLine on _QuranLineState {
             ),
         ];
 
-        final m = DkQuran.measureLine(pieces, fontSize);
-        final natural = m.width;
-        final spaces = m.gaps;
-
-        // Every gap gets at least the minimum extra space; a justified line
-        // spreads the rest of the width over its gaps. The gap before a verse
-        // sign counts as a word gap too.
-        double wordSpacing = DkQuran.minWordGapEm * fontSize;
-        if (justify && spaces > 0) {
-          final fill = (maxW - natural) / spaces;
-          if (fill > wordSpacing) wordSpacing = fill;
+        // A justified line is fitted like the print (DkQuran.fitLine):
+        // stretched letters or wider gaps when it has room, tighter gaps and
+        // narrow letter forms when it is long. The gap before a verse sign
+        // counts as a word gap too. A centred line keeps its natural form.
+        List<FontFeature> features = const [];
+        double wordSpacing = DkQuran.comfortableGapEm * fontSize;
+        if (justify) {
+          final fit = DkQuran.fitLine(
+            pieces,
+            fontSize,
+            maxW,
+            key: '${[
+              for (final a in widget.line.ayahs) '${a.id}.${a.linePart}'
+            ].join(',')}|${maxW.round()}|${fontSize.toStringAsFixed(2)}',
+          );
+          features = fit.features;
+          wordSpacing = fit.wordSpacing;
+          pieces = DkQuran.stretchWords(pieces, fit.stretch);
         }
-        final style = base.copyWith(wordSpacing: wordSpacing);
-        final markerGap = m.space + wordSpacing;
+        final space = DkQuran.measureLine(const [], fontSize).space;
+        final style =
+            base.copyWith(wordSpacing: wordSpacing, fontFeatures: features);
+        final markerGap = space + wordSpacing;
 
         // A Row lays the pieces out right-to-left in reading order. Gaps are
         // explicit boxes of exactly one justified word gap: DigitalKhatt would

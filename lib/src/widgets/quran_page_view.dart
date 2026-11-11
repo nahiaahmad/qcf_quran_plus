@@ -294,12 +294,31 @@ class QuranSinglePageWidget extends StatelessWidget {
             // so every line sits at the same height on every page (facing
             // pages line up) and every page ends where a full page ends.
             // Pages 3–604 always add up to 15 slots (test/print_layout_test).
-            final double lineHeight = availableHeight * 0.95 / 15;
+            // The page box is the whole height: the reader places it between
+            // its top bar and its player.
+            final double lineHeight = availableHeight / 15;
 
-            // A banner or basmala held to one slot.
+            // A basmala held to one slot.
             Widget slot(Widget child) => SizedBox(
                   height: lineHeight > 0 ? lineHeight : 40,
                   child: child,
+                );
+
+            // A banner takes one slot but, as in the print, spans the text
+            // width (95% of the page, at the banner picture's own 3421:403
+            // shape, plus 2 + 2 padding); centred on its slot, it may reach a
+            // little into the space of its neighbours (at most 0.2 slot).
+            final double slotH = lineHeight > 0 ? lineHeight : 40;
+            double bannerH =
+                constraints.maxWidth * 0.95 * 403 / 3421 + 4;
+            if (bannerH > slotH * 1.4) bannerH = slotH * 1.4;
+            Widget bannerSlot(Widget child) => SizedBox(
+                  height: slotH,
+                  child: OverflowBox(
+                    minHeight: bannerH,
+                    maxHeight: bannerH,
+                    child: child,
+                  ),
                 );
 
             // DigitalKhatt: one font size for the whole page.
@@ -319,7 +338,7 @@ class QuranSinglePageWidget extends StatelessWidget {
                 if (isFirstAyahInSurah && line.ayahs.isNotEmpty) ...[
                   if (!surahsWithBannerOnPreviousPage
                       .contains(line.ayahs[0].surahNumber))
-                    slot(
+                    bannerSlot(
                       surahHeaderBuilder?.call(
                             context,
                             line.ayahs[0].surahNumber,
@@ -342,6 +361,8 @@ class QuranSinglePageWidget extends StatelessWidget {
                               useDigitalKhatt: useDigitalKhatt,
                               isTajweed: isTajweed,
                               inkColor: inkColor,
+                              fontSize: dkFontSize,
+                              stretched: true,
                             ),
                       ),
                     ),
@@ -368,7 +389,7 @@ class QuranSinglePageWidget extends StatelessWidget {
                 // The next surah's banner under the last line, as in the print.
                 if (lineIndex == page.lines.length - 1 &&
                     page.trailingBannerSurah != null)
-                  slot(
+                  bannerSlot(
                     surahHeaderBuilder?.call(
                             context, page.trailingBannerSurah!) ??
                         SurahHeaderWidget(

@@ -23,11 +23,12 @@ class SurahHeaderWidget extends StatelessWidget {
       builder: (context, constraints) {
         final double availableWidth = constraints.maxWidth;
 
-        // In a page's line slot (bounded height) the banner fits that one
-        // line, as in the print; elsewhere it is 90% of the width.
+        // On a Mushaf page (bounded height) the banner spans the text width,
+        // as in the print, within the height it is given; elsewhere it is 90%
+        // of the width.
         final bool inSlot = constraints.maxHeight.isFinite;
         final double pad = inSlot ? 2 : 8;
-        double headerWidth = availableWidth * 0.9;
+        double headerWidth = availableWidth * (inSlot ? 0.95 : 0.9);
         if (inSlot) {
           final byHeight = (constraints.maxHeight - 2 * pad) * bannerAspect;
           if (byHeight < headerWidth) headerWidth = byHeight;

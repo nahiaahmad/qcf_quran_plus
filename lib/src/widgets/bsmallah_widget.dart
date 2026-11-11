@@ -1,3 +1,5 @@
+import 'dart:ui' show FontFeature;
+
 import 'package:flutter/material.dart';
 import '../utils/dk_quran.dart';
 import '../utils/quran_text_styles.dart';
@@ -10,6 +12,8 @@ class BasmallahWidget extends StatelessWidget {
     this.useDigitalKhatt = false,
     this.isTajweed = false,
     this.inkColor,
+    this.fontSize,
+    this.stretched = false,
   });
 
   /// The index of the Surah used to determine the correct Basmallah glyph.
@@ -19,6 +23,14 @@ class BasmallahWidget extends StatelessWidget {
   final bool useDigitalKhatt;
   final bool isTajweed;
   final Color? inkColor;
+
+  /// DigitalKhatt only: letter size (21 by default); a Mushaf page passes
+  /// its own page size so the basmala matches the text.
+  final double? fontSize;
+
+  /// DigitalKhatt only: the long, stretched basmala of the printed Mushaf
+  /// (the font's `basm` form) instead of the plain one.
+  final bool stretched;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +49,11 @@ class BasmallahWidget extends StatelessWidget {
               ink: ink,
               withNumber: false,
             ),
-            style: DkQuran.style(fontSize: 21, height: 1.75),
+            style: DkQuran.style(fontSize: fontSize ?? 21, height: 1.75)
+                .copyWith(
+                  fontFeatures:
+                      stretched ? const [FontFeature('basm')] : null,
+                ),
           ),
         ),
       );
