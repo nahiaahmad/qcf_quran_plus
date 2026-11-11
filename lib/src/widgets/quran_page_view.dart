@@ -289,25 +289,18 @@ class QuranSinglePageWidget extends StatelessWidget {
                 ? constraints.maxHeight
                 : deviceSize.width);
 
-            // Space taken by surah banners and basmalas on this page: a banner
-            // 80, a basmala 30 (banner + basmala 110, At-Tawbah's banner alone
-            // 80, as before). A surah whose banner closes the previous page
-            // (print layout) has only its basmala here; that page reserves the
-            // banner.
-            double surahHeaderOffset = 0;
-            for (final a in page.ayahs) {
-              if (a.ayahNumber != 1) continue;
-              if (!surahsWithBannerOnPreviousPage.contains(a.surahNumber)) {
-                surahHeaderOffset += 80;
-              }
-              if (a.surahNumber != 9) surahHeaderOffset += 30;
-            }
-            if (page.trailingBannerSurah != null) surahHeaderOffset += 80;
+            // The print's grid: every page is 15 equal line slots. A text
+            // line, a surah banner and a basmala each take exactly one slot,
+            // so every line sits at the same height on every page (facing
+            // pages line up) and every page ends where a full page ends.
+            // Pages 3–604 always add up to 15 slots (test/print_layout_test).
+            final double lineHeight = availableHeight * 0.95 / 15;
 
-            // Dynamically calculate the height of each line to ensure the text fills the page perfectly
-            int linesCount = page.lines.isNotEmpty ? page.lines.length : 1;
-            double lineHeight =
-                (availableHeight - surahHeaderOffset) * 0.95 / linesCount;
+            // A banner or basmala held to one slot.
+            Widget slot(Widget child) => SizedBox(
+                  height: lineHeight > 0 ? lineHeight : 40,
+                  child: child,
+                );
 
             // DigitalKhatt: one font size for the whole page.
             final double? dkFontSize = useDigitalKhatt
@@ -326,25 +319,32 @@ class QuranSinglePageWidget extends StatelessWidget {
                 if (isFirstAyahInSurah && line.ayahs.isNotEmpty) ...[
                   if (!surahsWithBannerOnPreviousPage
                       .contains(line.ayahs[0].surahNumber))
-                    surahHeaderBuilder?.call(
-                          context,
-                          line.ayahs[0].surahNumber,
-                        ) ??
-                        SurahHeaderWidget(
-                            suraNumber: line.ayahs[0].surahNumber),
+                    slot(
+                      surahHeaderBuilder?.call(
+                            context,
+                            line.ayahs[0].surahNumber,
+                          ) ??
+                          SurahHeaderWidget(
+                              suraNumber: line.ayahs[0].surahNumber),
+                    ),
 
                   // Add Basmallah unless it's Surah 9 (At-Tawbah)
                   if (line.ayahs[0].surahNumber != 9)
-                    basmallahBuilder?.call(
-                          context,
-                          line.ayahs[0].surahNumber,
-                        ) ??
-                        BasmallahWidget(
-                          line.ayahs[0].surahNumber,
-                          useDigitalKhatt: useDigitalKhatt,
-                          isTajweed: isTajweed,
-                          inkColor: inkColor,
-                        ),
+                    slot(
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: basmallahBuilder?.call(
+                              context,
+                              line.ayahs[0].surahNumber,
+                            ) ??
+                            BasmallahWidget(
+                              line.ayahs[0].surahNumber,
+                              useDigitalKhatt: useDigitalKhatt,
+                              isTajweed: isTajweed,
+                              inkColor: inkColor,
+                            ),
+                      ),
+                    ),
                 ],
 
                 // The actual line of Quranic text
@@ -368,8 +368,12 @@ class QuranSinglePageWidget extends StatelessWidget {
                 // The next surah's banner under the last line, as in the print.
                 if (lineIndex == page.lines.length - 1 &&
                     page.trailingBannerSurah != null)
-                  surahHeaderBuilder?.call(context, page.trailingBannerSurah!) ??
-                      SurahHeaderWidget(suraNumber: page.trailingBannerSurah!),
+                  slot(
+                    surahHeaderBuilder?.call(
+                            context, page.trailingBannerSurah!) ??
+                        SurahHeaderWidget(
+                            suraNumber: page.trailingBannerSurah!),
+                  ),
               ],
             );
           },

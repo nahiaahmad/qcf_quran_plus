@@ -10,6 +10,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qcf_quran_plus/qcf_quran_plus.dart';
+import 'package:qcf_quran_plus/src/widgets/bsmallah_widget.dart';
+import 'package:qcf_quran_plus/src/widgets/quran_line.dart';
+import 'package:qcf_quran_plus/src/widgets/surah_header_widget.dart';
 
 Future<void> _loadFont(String family, String path) async {
   final bytes = File(path).readAsBytesSync();
@@ -67,26 +70,86 @@ void main() {
     expect(newSurahs(pages[76]), 1);
   });
 
+  testWidgets('every page is the print grid: 15 equal slots, lines aligned',
+      (t) async {
+    await _loadFont(
+      'packages/qcf_quran_plus/DigitalKhatt',
+      'assets/fonts/digitalkhatt/DigitalKhattV2.otf',
+    );
+    t.view.physicalSize = const Size(1320, 2868);
+    t.view.devicePixelRatio = 3;
+    addTearDown(t.view.reset);
+    // The page box of the reader on an iPhone Pro Max; slot = 95% / 15.
+    const pageHeight = 956.0 - 110 - 60;
+    const slot = pageHeight * 0.95 / 15;
+    final off = <String>[];
+    for (int p = 3; p <= 604; p++) {
+      await t.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(size: Size(440, 956)),
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 110, 16, 60),
+              child: QuranSinglePageWidget(
+                page: pages[p - 1],
+                pageIndex: p,
+                highlights: const [],
+                pageController: PageController(),
+                isDark: false,
+                useDigitalKhatt: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(t.takeException(), isNull, reason: 'page $p');
+      final top = t.getTopLeft(find.byType(QuranSinglePageWidget)).dy;
+      // Every text line, banner and basmala starts on a slot boundary, and
+      // the last one ends on the 15th.
+      final rows = [
+        ...find.byType(QuranLine).evaluate(),
+        ...find.byType(SurahHeaderWidget).evaluate(),
+        ...find.byType(BasmallahWidget).evaluate(),
+      ].map((e) => (e.renderObject! as RenderBox))
+          .map((b) => b.localToGlobal(Offset.zero).dy - top)
+          .toList()
+        ..sort();
+      final lines = find.byType(QuranLine).evaluate().length;
+      if (lines != pages[p - 1].lines.length) {
+        off.add('page $p: ${pages[p - 1].lines.length} lines, $lines drawn');
+      }
+      final last = [
+        ...find.byType(QuranLine).evaluate(),
+        ...find.byType(SurahHeaderWidget).evaluate(),
+      ].map((e) => e.renderObject! as RenderBox)
+          .map((b) => b.localToGlobal(Offset(0, b.size.height)).dy - top)
+          .reduce((a, b) => a > b ? a : b);
+      if (last > 15 * slot + 0.5) {
+        off.add('page $p: ends at ${last.toStringAsFixed(1)} > '
+            '${(15 * slot).toStringAsFixed(1)}');
+      }
+      for (final y in rows) {
+        final k = y / slot;
+        if ((k - k.round()).abs() * slot > 6) {
+          off.add('page $p: a row starts at ${y.toStringAsFixed(1)} '
+              '(slot ${k.toStringAsFixed(2)})');
+          break;
+        }
+      }
+    }
+    expect(off, isEmpty);
+  });
+
   testWidgets('these pages are drawn at the same size as the rest', (t) async {
     await _loadFont(
       'packages/qcf_quran_plus/DigitalKhatt',
       'assets/fonts/digitalkhatt/DigitalKhattV2.otf',
     );
-    // iPhone Pro Max portrait, the reader's page box.
+    // iPhone Pro Max portrait, the reader's page box: one slot per line.
     const width = 440.0, height = 786.0;
-    double sizeOf(QuranPage p) {
-      double off = 0;
-      for (final a in p.ayahs) {
-        if (a.ayahNumber != 1) continue;
-        if (!surahsWithBannerOnPreviousPage.contains(a.surahNumber)) off += 80;
-        if (a.surahNumber != 9) off += 30;
-      }
-      if (p.trailingBannerSurah != null) off += 80;
-      final lineHeight = (height - off) * 0.95 / p.lines.length;
-      return DkQuran.pageFontSize(p,
-          lineWidth: width - 32, lineHeight: lineHeight);
-    }
-
+    double sizeOf(QuranPage p) => DkQuran.pageFontSize(p,
+        lineWidth: width - 32, lineHeight: height * 0.95 / 15);
     final all = [for (final p in pages.skip(2)) sizeOf(p)]..sort();
     final median = all[all.length ~/ 2];
     final low = <String>[];

@@ -11,6 +11,9 @@ class SurahHeaderWidget extends StatelessWidget {
 
   const SurahHeaderWidget({super.key, required this.suraNumber});
 
+  /// Width / height of assets/surah_banner.png (3421 × 403).
+  static const double bannerAspect = 3421 / 403;
+
   @override
   Widget build(BuildContext context) {
     // The path to the decorative frame used as a background for the Surah name.
@@ -20,14 +23,21 @@ class SurahHeaderWidget extends StatelessWidget {
       builder: (context, constraints) {
         final double availableWidth = constraints.maxWidth;
 
-        // Calculate header width as 90% of available space for padding/breathing room.
-        final double headerWidth = availableWidth * 0.9;
+        // In a page's line slot (bounded height) the banner fits that one
+        // line, as in the print; elsewhere it is 90% of the width.
+        final bool inSlot = constraints.maxHeight.isFinite;
+        final double pad = inSlot ? 2 : 8;
+        double headerWidth = availableWidth * 0.9;
+        if (inSlot) {
+          final byHeight = (constraints.maxHeight - 2 * pad) * bannerAspect;
+          if (byHeight < headerWidth) headerWidth = byHeight;
+        }
 
         // Dynamically calculate font size based on the width to prevent text overflow.
         final double dynamicFontSize = headerWidth * 0.085;
 
         return Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.symmetric(vertical: pad),
           width: double.infinity,
           alignment: Alignment.center,
           child: Stack(
