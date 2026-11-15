@@ -526,7 +526,14 @@ class DkText extends StatelessWidget {
     Text text(List<InlineSpan> s) => Text.rich(
       TextSpan(children: s),
       style: style,
-      textAlign: textAlign,
+      // A single unwrapped line is left-aligned so TextPainter lays it out once,
+      // at infinite width. With start/right alignment it lays the line out
+      // again at its measured intrinsic width, which word spacing plus the
+      // 'jalt' forms under-measure by a hair, so at some page widths the last
+      // word dropped onto a second row and the line shrank (page 5 at 393, 499,
+      // 640, 650 pt). The glyphs still run right to left; the box is the
+      // line's own width, so nothing moves.
+      textAlign: textAlign ?? (softWrap ? null : TextAlign.left),
       textDirection: TextDirection.rtl,
       softWrap: softWrap,
     );
