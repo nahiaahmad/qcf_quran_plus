@@ -270,6 +270,13 @@ class QuranSinglePageWidget extends StatelessWidget {
           physics: orientation == Orientation.portrait
               ? const NeverScrollableScrollPhysics()
               : const BouncingScrollPhysics(),
+          // Portrait: the 15 lines fill the box exactly and never scroll, so
+          // nothing is clipped at its edge. A letter whose tail hangs below
+          // the last line (the ع of «فاقع», page 10) is drawn whole; the
+          // reader decides how far the page may draw past its box.
+          clipBehavior: orientation == Orientation.portrait
+              ? Clip.none
+              : Clip.hardEdge,
           itemCount: page.lines.length,
           itemBuilder: (context, lineIndex) {
             final line = page.lines[lineIndex];
