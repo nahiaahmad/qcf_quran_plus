@@ -2,7 +2,6 @@
 // words of each of the fifteen sajdas. DigitalKhatt's own patterns, matched
 // line by line, find exactly these fifteen, each on one line.
 
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qcf_quran_plus/src/data/dk_data.dart';
 import 'package:qcf_quran_plus/src/utils/dk_quran.dart';
@@ -38,55 +37,22 @@ void main() {
     expect(found[3518], c('خَرُّوا۟ سُجَّدࣰا'));
   });
 
-  test('only the sajda text carries the overline — not the ۩ after it', () {
+  test('the sajda range stops before ۩', () {
     const line = 'عَلَيْهِمُ ٱلْقُرْءَانُ لَا يَسْجُدُونَ۩';
-    final pieces = [
-      (
-        body: <InlineSpan>[const TextSpan(text: line)],
-        marker: null,
-        markerColor: const Color(0xFF000000),
-      ),
-    ];
-    final spans = DkQuran.sajdaLine(pieces, const Color(0xFF123456))
-        .single
-        .body
-        .cast<TextSpan>();
-    final lined = spans
-        .where((s) => s.style?.decoration == TextDecoration.overline)
-        .map((s) => s.text)
-        .join();
-    expect(lined, 'يَسْجُدُونَ');
+    final r = DkQuran.sajdaRange(line)!;
+    expect(line.substring(r.start, r.end), 'يَسْجُدُونَ');
   });
 
-  test('only the sajda words carry the overline, gaps between them too', () {
+  test('the sajda range is the lined words only', () {
     const line = 'كَلَّا لَا تُطِعْهُ وَٱسْجُدْ وَٱقْتَرِب۩';
-    final pieces = [
-      (
-        body: <InlineSpan>[const TextSpan(text: line)],
-        marker: '۝١٩',
-        markerColor: const Color(0xFF000000),
-      ),
-    ];
-    final out = DkQuran.sajdaLine(pieces, const Color(0xFF123456));
-    final spans = out.single.body.cast<TextSpan>();
-    final lined = spans
-        .where((s) => s.style?.decoration == TextDecoration.overline)
-        .map((s) => s.text)
-        .join();
-    expect(lined, 'وَٱسْجُدْ');
-    expect(spans.map((s) => s.text).join(), line, reason: 'text unchanged');
-    expect(out.single.marker, '۝١٩');
+    final r = DkQuran.sajdaRange(line)!;
+    expect(line.substring(r.start, r.end), 'وَٱسْجُدْ');
+    const fussilat = 'وَلَا لِلْقَمَرِ وَٱسْجُدُوا۟ لِلَّهِ ٱلَّذِي خَلَقَهُنَّ';
+    final f = DkQuran.sajdaRange(fussilat)!;
+    expect(fussilat.substring(f.start, f.end), 'وَٱسْجُدُوا۟ لِلَّهِ');
   });
 
-  test('a line without a sajda is returned untouched', () {
-    final pieces = [
-      (
-        body: <InlineSpan>[const TextSpan(text: 'ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَٰلَمِينَ')],
-        marker: null,
-        markerColor: const Color(0xFF000000),
-      ),
-    ];
-    expect(identical(DkQuran.sajdaLine(pieces, const Color(0xFF000000)), pieces),
-        isTrue);
+  test('a line without a sajda has no range', () {
+    expect(DkQuran.sajdaRange('ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَٰلَمِينَ'), isNull);
   });
 }

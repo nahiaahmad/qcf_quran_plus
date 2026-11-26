@@ -402,59 +402,30 @@ class DkQuran {
   /// Whether [codePoint] is a base (not a combining mark) for [sajdaLetters].
   static bool isBase(int codePoint) => _ccc(codePoint) == 0;
 
-  /// [pieces] with the sajda line drawn over its words, in [color]: an
-  /// overline on those words' letters and the gaps between them.
-  static List<({List<InlineSpan> body, String? marker, Color markerColor})>
-      sajdaLine(
-    List<({List<InlineSpan> body, String? marker, Color markerColor})> pieces,
-    Color color,
-  ) {
-    var changed = false;
-    final out =
-        <({List<InlineSpan> body, String? marker, Color markerColor})>[];
-    for (final p in pieces) {
-      final plain = p.body.map((s) => (s as TextSpan).text ?? '').join();
-      final range = sajdaLetters(plain);
-      if (range == null) {
-        out.add(p);
-        continue;
-      }
-      changed = true;
-      final body = <InlineSpan>[];
-      // Base letters counted as canonicalArabic counts them: a hamza or madda
-      // letter is one base; a mark belongs to the base before it.
-      var base = -1;
-      for (final span in p.body) {
-        final ts = span as TextSpan;
-        final buf = StringBuffer();
-        bool? bufLined;
-        void flush() {
-          if (buf.isEmpty) return;
-          body.add(TextSpan(
-            text: buf.toString(),
-            style: bufLined == true
-                ? (ts.style ?? const TextStyle()).copyWith(
-                    decoration: TextDecoration.overline,
-                    decorationColor: color,
-                    decorationThickness: 1.4,
-                  )
-                : ts.style,
-          ));
-          buf.clear();
+  /// The sajda text on a line piece as UTF-16 offsets in [plain] itself
+  /// (start inclusive, end exclusive): from its first base letter through
+  /// the marks of its last, never the ۩ after it. Null when there is none.
+  static ({int start, int end})? sajdaRange(String plain) {
+    final r = sajdaLetters(plain);
+    if (r == null) return null;
+    int? start, end;
+    var base = -1;
+    var offset = 0;
+    for (final c in plain.runes) {
+      final len = c > 0xFFFF ? 2 : 1;
+      // A hamza or madda letter is one base, as canonicalArabic counts it.
+      if (_ccc(c) == 0) {
+        base++;
+        if (base == r.first) start = offset;
+        if (base == r.last + 1) {
+          end = offset;
+          break;
         }
-
-        for (final r in (ts.text ?? '').runes) {
-          if (_ccc(r) == 0) base++;
-          final lined = base >= range.first && base <= range.last;
-          if (bufLined != null && lined != bufLined) flush();
-          bufLined = lined;
-          buf.writeCharCode(r);
-        }
-        flush();
       }
-      out.add((body: body, marker: p.marker, markerColor: p.markerColor));
+      offset += len;
     }
-    return changed ? out : pieces;
+    if (start == null) return null;
+    return (start: start, end: end ?? plain.length);
   }
 
 

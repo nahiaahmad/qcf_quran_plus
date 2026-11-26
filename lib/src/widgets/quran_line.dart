@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
@@ -323,8 +324,6 @@ extension _DigitalKhattLine on _QuranLineState {
           wordSpacing = fit.wordSpacing;
           pieces = DkQuran.stretchWords(pieces, fit.stretch);
         }
-        // The line over the sajda words, as the Madinah print draws it.
-        pieces = DkQuran.sajdaLine(pieces, ink);
         final space = DkQuran.measureLine(const [], fontSize).space;
         final style =
             base.copyWith(wordSpacing: wordSpacing, fontFeatures: features);
@@ -359,7 +358,12 @@ extension _DigitalKhattLine on _QuranLineState {
                   textDirection: TextDirection.rtl,
                   children: [
                     if (pieces[i].body.isNotEmpty)
-                      DkText(pieces[i].body, style: style, softWrap: false),
+                      _withSajdaLine(
+                        pieces[i].body,
+                        style,
+                        ink,
+                        DkText(pieces[i].body, style: style, softWrap: false),
+                      ),
                     if (pieces[i].marker != null) ...[
                       if (pieces[i].body.isNotEmpty)
                         SizedBox(width: markerGap),
@@ -417,4 +421,93 @@ class _AyahDisplayData {
     required this.surahNumber,
     required this.ayahNumber,
   });
+}
+
+/// [text] with the sajda line over its sajda words, if it has any: the
+/// Madinah print's line over the words of each of the fifteen sajdas
+/// ([DkQuran.sajdaRange]). Drawn over the text, never changing it.
+Widget _withSajdaLine(
+    List<InlineSpan> spans, TextStyle style, Color color, Widget text) {
+  final plain = spans.map((s) => (s as TextSpan).text ?? '').join();
+  final range = DkQuran.sajdaRange(plain);
+  if (range == null) return text;
+  return Builder(
+    builder: (context) => CustomPaint(
+      foregroundPainter: _SajdaLinePainter(
+        spans: spans,
+        style: style,
+        range: range,
+        color: color,
+        scaler: MediaQuery.textScalerOf(context),
+      ),
+      child: text,
+    ),
+  );
+}
+
+class _SajdaLinePainter extends CustomPainter {
+  _SajdaLinePainter({
+    required this.spans,
+    required this.style,
+    required this.range,
+    required this.color,
+    required this.scaler,
+  });
+
+  final List<InlineSpan> spans;
+  final TextStyle style;
+  final ({int start, int end}) range;
+  final Color color;
+  final TextScaler scaler;
+
+  /// The stroke, as a share of the font size.
+  static const double strokeEm = 0.04;
+
+  /// How far above the letters' tight top the line sits, as a share of the
+  /// font size.
+  static const double gapEm = 0.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // The same layout DkText gives: one unwrapped right-to-left line, left
+    // aligned in its own box.
+    final tp = TextPainter(
+      text: TextSpan(children: spans, style: style),
+      textDirection: TextDirection.rtl,
+      textAlign: TextAlign.left,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    final boxes = tp.getBoxesForSelection(
+      TextSelection(baseOffset: range.start, extentOffset: range.end),
+      boxHeightStyle: ui.BoxHeightStyle.tight,
+    );
+    tp.dispose();
+    if (boxes.isEmpty) return;
+    var left = boxes.first.left, right = boxes.first.right;
+    var top = boxes.first.top;
+    for (final b in boxes) {
+      if (b.left < left) left = b.left;
+      if (b.right > right) right = b.right;
+      if (b.top < top) top = b.top;
+    }
+    final fs = scaler.scale(style.fontSize ?? 14);
+    final y = top - gapEm * fs;
+    canvas.drawLine(
+      Offset(left, y),
+      Offset(right, y),
+      Paint()
+        ..color = color
+        ..strokeWidth = strokeEm * fs
+        ..strokeCap = StrokeCap.butt,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SajdaLinePainter old) =>
+      old.range != range ||
+      old.color != color ||
+      old.style != style ||
+      old.scaler != scaler ||
+      !identical(old.spans, spans);
 }
