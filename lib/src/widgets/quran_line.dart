@@ -466,7 +466,7 @@ class _SajdaLinePainter extends CustomPainter {
   /// Where the line sits, as a share of the font size above the baseline:
   /// just over the words' marks, as in the print. (The font's own ascent
   /// reserves far more room above the letters than their ink takes.)
-  static const double aboveBaselineEm = 0.95;
+  static const double aboveBaselineEm = 1.08;
 
   @override
   void paint(Canvas canvas, Size size) {
