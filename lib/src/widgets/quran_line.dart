@@ -463,9 +463,10 @@ class _SajdaLinePainter extends CustomPainter {
   /// The stroke, as a share of the font size.
   static const double strokeEm = 0.04;
 
-  /// How far above the letters' tight top the line sits, as a share of the
-  /// font size.
-  static const double gapEm = 0.0;
+  /// Where the line sits, as a share of the font size above the baseline:
+  /// just over the words' marks, as in the print. (The font's own ascent
+  /// reserves far more room above the letters than their ink takes.)
+  static const double aboveBaselineEm = 0.95;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -482,17 +483,20 @@ class _SajdaLinePainter extends CustomPainter {
       TextSelection(baseOffset: range.start, extentOffset: range.end),
       boxHeightStyle: ui.BoxHeightStyle.tight,
     );
-    tp.dispose();
-    if (boxes.isEmpty) return;
+    if (boxes.isEmpty) {
+      tp.dispose();
+      return;
+    }
     var left = boxes.first.left, right = boxes.first.right;
-    var top = boxes.first.top;
     for (final b in boxes) {
       if (b.left < left) left = b.left;
       if (b.right > right) right = b.right;
-      if (b.top < top) top = b.top;
     }
+    final metrics = tp.computeLineMetrics();
     final fs = scaler.scale(style.fontSize ?? 14);
-    final y = top - gapEm * fs;
+    final baseline = metrics.isEmpty ? boxes.first.bottom : metrics.first.baseline;
+    final y = baseline - aboveBaselineEm * fs;
+    tp.dispose();
     canvas.drawLine(
       Offset(left, y),
       Offset(right, y),
