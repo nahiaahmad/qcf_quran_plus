@@ -312,6 +312,9 @@ class DkQuran {
   static const String sajdaPatterns =
       '(وَٱسْجُدْ) وَٱقْتَرِب|(خَرُّوا۟ سُجَّدࣰا)|(وَلِلَّهِ يَسْجُدُ)|(يَسْجُدُونَ)۩|(فَٱسْجُدُوا۟ لِلَّهِ)|(وَٱسْجُدُوا۟ لِلَّهِ)|(أَلَّا يَسْجُدُوا۟ لِلَّهِ)|(وَخَرَّ رَاكِعࣰا)|(يَسْجُدُ لَهُ)|(يَخِرُّونَ لِلْأَذْقَانِ سُجَّدࣰا)|(ٱسْجُدُوا۟) لِلرَّحْمَٰنِ|ٱرْكَعُوا۟ (وَٱسْجُدُوا۟)';
 
+  /// The lined words' line height (see [sajdaLine]).
+  static const double sajdaRunHeight = 1.0;
+
   static final RegExp _sajda =
       RegExp(canonicalArabic(sajdaPatterns), unicode: true);
 
@@ -437,6 +440,13 @@ class DkQuran {
                     decoration: TextDecoration.overline,
                     decorationColor: color,
                     decorationThickness: 1.4,
+                    // An overline sits at the top of its run's box. The page
+                    // lines are 1.75 em apart; at that height it floated near
+                    // the line above. The lined words' own box is the font's
+                    // natural height, so the line rests just over their
+                    // marks, as in the print. The line spacing is the other
+                    // words' and does not change.
+                    height: sajdaRunHeight,
                   )
                 : ts.style,
           ));
