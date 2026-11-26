@@ -37,6 +37,18 @@ void main() {
     expect(found[3518], c('خَرُّوا۟ سُجَّدࣰا'));
   });
 
+  test('the cached range finds the same fifteen, twice', () {
+    for (var pass = 0; pass < 2; pass++) {
+      var n = 0;
+      for (final a in dkAyahText) {
+        for (final line in a.split('\n')) {
+          if (DkQuran.sajdaRange(line) != null) n++;
+        }
+      }
+      expect(n, 15, reason: 'pass $pass');
+    }
+  });
+
   test('the sajda range stops before ۩', () {
     const line = 'عَلَيْهِمُ ٱلْقُرْءَانُ لَا يَسْجُدُونَ۩';
     final r = DkQuran.sajdaRange(line)!;

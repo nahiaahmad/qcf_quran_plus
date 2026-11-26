@@ -406,6 +406,18 @@ class DkQuran {
   /// (start inclusive, end exclusive): from its first base letter through
   /// the marks of its last, never the ۩ after it. Null when there is none.
   static ({int start, int end})? sajdaRange(String plain) {
+    // A line's text never changes; it is drawn every frame of a page turn or
+    // an opening zoom. Each line is searched once.
+    if (_sajdaRangeCache.containsKey(plain)) return _sajdaRangeCache[plain];
+    final found = _sajdaRangeOf(plain);
+    if (_sajdaRangeCache.length > 4000) _sajdaRangeCache.clear();
+    _sajdaRangeCache[plain] = found;
+    return found;
+  }
+
+  static final Map<String, ({int start, int end})?> _sajdaRangeCache = {};
+
+  static ({int start, int end})? _sajdaRangeOf(String plain) {
     final r = sajdaLetters(plain);
     if (r == null) return null;
     int? start, end;
