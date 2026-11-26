@@ -297,6 +297,167 @@ class DkQuran {
   /// drawn without its alif, أموالهم squashed), checked 2026-11-11.
   static const List<FontFeature> stretchedForms = [FontFeature('jalt')];
 
+  // ── The sajda line ─────────────────────────────────────────────────────
+  //
+  // The Madinah print draws a line over the words of each of the fifteen
+  // sajdas. The words are DigitalKhatt's own patterns, verbatim
+  // (DigitalKhatt/digitalkhatt.org ClientApp/src/app/services/
+  // qurantext.service.ts, `sajdapatterns`; the same list in visualmetafont
+  // lib/digitalkhatt/src/otlayout/Layout/MushafLayout.cpp): in each
+  // alternative the parenthesised group is the lined text. Matched line by
+  // line, as DigitalKhatt does, after putting the marks in canonical order
+  // (this text writes shadda before fatha, the patterns after it). It finds
+  // exactly the fifteen: 7:206, 13:15, 16:49, 17:107, 19:58, 22:18, 22:77,
+  // 25:60, 27:25, 32:15, 38:24, 41:37, 53:62, 84:21, 96:19.
+  static const String sajdaPatterns =
+      '(وَٱسْجُدْ) وَٱقْتَرِب|(خَرُّوا۟ سُجَّدࣰا)|(وَلِلَّهِ يَسْجُدُ)|(يَسْجُدُونَ)۩|(فَٱسْجُدُوا۟ لِلَّهِ)|(وَٱسْجُدُوا۟ لِلَّهِ)|(أَلَّا يَسْجُدُوا۟ لِلَّهِ)|(وَخَرَّ رَاكِعࣰا)|(يَسْجُدُ لَهُ)|(يَخِرُّونَ لِلْأَذْقَانِ سُجَّدࣰا)|(ٱسْجُدُوا۟) لِلرَّحْمَٰنِ|ٱرْكَعُوا۟ (وَٱسْجُدُوا۟)';
+
+  static final RegExp _sajda =
+      RegExp(canonicalArabic(sajdaPatterns), unicode: true);
+
+  /// Arabic marks in canonical order (Unicode canonical combining classes),
+  /// with the hamza and madda letters decomposed, as NFD does for this text.
+  /// Only the marks' order and those five letters change; spaces stay put.
+  static String canonicalArabic(String text) {
+    const decompose = {
+      0x0622: [0x0627, 0x0653],
+      0x0623: [0x0627, 0x0654],
+      0x0624: [0x0648, 0x0654],
+      0x0625: [0x0627, 0x0655],
+      0x0626: [0x064A, 0x0654],
+    };
+    final out = <int>[];
+    final marks = <int>[];
+    void flush() {
+      if (marks.isEmpty) return;
+      // Stable sort by combining class.
+      final indexed = [for (var i = 0; i < marks.length; i++) (i, marks[i])];
+      indexed.sort((a, b) {
+        final c = _ccc(a.$2).compareTo(_ccc(b.$2));
+        return c != 0 ? c : a.$1.compareTo(b.$1);
+      });
+      out.addAll(indexed.map((e) => e.$2));
+      marks.clear();
+    }
+
+    for (final r in text.runes) {
+      for (final c in decompose[r] ?? [r]) {
+        if (_ccc(c) == 0) {
+          flush();
+          out.add(c);
+        } else {
+          marks.add(c);
+        }
+      }
+    }
+    flush();
+    return String.fromCharCodes(out);
+  }
+
+  static int _ccc(int c) {
+    if (c >= 0x064B && c <= 0x0652) return 27 + (c - 0x064B);
+    if (c == 0x0670) return 35;
+    if (c >= 0x08F0 && c <= 0x08F2) return 27 + (c - 0x08F0);
+    const below = {0x0655, 0x0656, 0x065C, 0x065F, 0x06E3, 0x06EA, 0x06ED};
+    if (below.contains(c)) return 220;
+    if ((c >= 0x0653 && c <= 0x065F) ||
+        (c >= 0x06D6 && c <= 0x06DC) ||
+        (c >= 0x06DF && c <= 0x06E4) ||
+        c == 0x06E7 ||
+        c == 0x06E8 ||
+        c == 0x06EB ||
+        c == 0x06EC ||
+        (c >= 0x08D3 && c <= 0x08FF)) {
+      return 230;
+    }
+    return 0;
+  }
+
+  /// The lined text on a line piece, exactly as the pattern's group: the
+  /// [first] to [last] base letter (marks follow their letter), counted on
+  /// letters so that the canonical reordering does not move it. Null when the
+  /// piece has no sajda.
+  static ({int first, int last})? sajdaLetters(String plain) {
+    final norm = canonicalArabic(plain);
+    final m = _sajda.firstMatch(norm);
+    if (m == null) return null;
+    for (var g = 1; g <= m.groupCount; g++) {
+      final t = m.group(g);
+      if (t == null) continue;
+      final start = m.start + m.group(0)!.indexOf(t);
+      final end = start + t.length; // exclusive
+      int bases(int upTo) {
+        var n = 0;
+        for (final r in norm.substring(0, upTo).runes) {
+          if (_ccc(r) == 0) n++;
+        }
+        return n;
+      }
+
+      return (first: bases(start), last: bases(end) - 1);
+    }
+    return null;
+  }
+
+  /// Whether [codePoint] is a base (not a combining mark) for [sajdaLetters].
+  static bool isBase(int codePoint) => _ccc(codePoint) == 0;
+
+  /// [pieces] with the sajda line drawn over its words, in [color]: an
+  /// overline on those words' letters and the gaps between them.
+  static List<({List<InlineSpan> body, String? marker, Color markerColor})>
+      sajdaLine(
+    List<({List<InlineSpan> body, String? marker, Color markerColor})> pieces,
+    Color color,
+  ) {
+    var changed = false;
+    final out =
+        <({List<InlineSpan> body, String? marker, Color markerColor})>[];
+    for (final p in pieces) {
+      final plain = p.body.map((s) => (s as TextSpan).text ?? '').join();
+      final range = sajdaLetters(plain);
+      if (range == null) {
+        out.add(p);
+        continue;
+      }
+      changed = true;
+      final body = <InlineSpan>[];
+      // Base letters counted as canonicalArabic counts them: a hamza or madda
+      // letter is one base; a mark belongs to the base before it.
+      var base = -1;
+      for (final span in p.body) {
+        final ts = span as TextSpan;
+        final buf = StringBuffer();
+        bool? bufLined;
+        void flush() {
+          if (buf.isEmpty) return;
+          body.add(TextSpan(
+            text: buf.toString(),
+            style: bufLined == true
+                ? (ts.style ?? const TextStyle()).copyWith(
+                    decoration: TextDecoration.overline,
+                    decorationColor: color,
+                    decorationThickness: 1.4,
+                  )
+                : ts.style,
+          ));
+          buf.clear();
+        }
+
+        for (final r in (ts.text ?? '').runes) {
+          if (_ccc(r) == 0) base++;
+          final lined = base >= range.first && base <= range.last;
+          if (bufLined != null && lined != bufLined) flush();
+          bufLined = lined;
+          buf.writeCharCode(r);
+        }
+        flush();
+      }
+      out.add((body: body, marker: p.marker, markerColor: p.markerColor));
+    }
+    return changed ? out : pieces;
+  }
+
+
   static final Map<String, double> _pageSizeCache = {};
 
   /// The letter size of every line of [page] (see [pageSizePerWidth]),

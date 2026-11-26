@@ -323,6 +323,8 @@ extension _DigitalKhattLine on _QuranLineState {
           wordSpacing = fit.wordSpacing;
           pieces = DkQuran.stretchWords(pieces, fit.stretch);
         }
+        // The line over the sajda words, as the Madinah print draws it.
+        pieces = DkQuran.sajdaLine(pieces, ink);
         final space = DkQuran.measureLine(const [], fontSize).space;
         final style =
             base.copyWith(wordSpacing: wordSpacing, fontFeatures: features);
